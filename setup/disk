@@ -1,26 +1,39 @@
 #!/bin/bash
 echo "Running setup/disk..."
 
-# --- CLEANUP PREVIOUS FAILED RUNS ---
-# Unmount any partitions on the target disk to prevent "device busy" errors
+# --- AGGRESSIVE CLEANUP FOR RE-RUNS ---
+echo "Cleaning up any previous installation..."
+
+# Force unmount everything on the target disk
 for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$'); do
-    echo "Unmounting $mount_point..."
-    umount -l "$mount_point" 2>/dev/null || true
+    echo "Force unmounting $mount_point..."
+    umount -f -l "$mount_point" 2>/dev/null || true
 done
 
-# Close any open LUKS containers on the target disk
+# Close any LUKS containers
 for mapper in /dev/mapper/*; do
-    if [ -e "$mapper" ] && lsblk -ln -o PKNAME "$mapper" 2>/dev/null | grep -q "$(basename "$diskInput")"; then
-        echo "Closing LUKS container $(basename "$mapper")..."
+    [ -e "$mapper" ] || continue
+    if lsblk -ln -o PKNAME "$mapper" 2>/dev/null | grep -q "$(basename "$diskInput")"; then
+        echo "Closing LUKS $(basename "$mapper")..."
         cryptsetup close "$(basename "$mapper")" 2>/dev/null || true
     fi
 done
+
+# Swapoff if any swap on this disk
+for swapdev in $(lsblk -ln -o NAME,FSTYPE "$diskInput" 2>/dev/null | grep swap | awk '{print $1}'); do
+    echo "Disabling swap on $swapdev..."
+    swapoff "/dev/$swapdev" 2>/dev/null || true
+done
+
+# Force kernel to re-read partition table
+partprobe "$diskInput" 2>/dev/null || true
+blockdev --rereadpt "$diskInput" 2>/dev/null || true
+sleep 2
 
 commandFailure="Disk pre-install wipe has failed."
 wipefs --all -f "$diskInput" || die
 
 # Clean partition layout: 512M EFI, remaining space Root
-# Using fdisk via echo pipe for maximum compatibility across all util-linux versions
 commandFailure="Writing partition table has failed."
 (
     echo "g"          # Create a new empty GPT partition table
@@ -37,6 +50,11 @@ commandFailure="Writing partition table has failed."
     echo ""           # Last sector (default, uses all remaining space)
     echo "w"          # Write table to disk and exit
 ) | fdisk -w always "$diskInput" || { commandFailure="Writing partition table to disk has failed." ; die ; }
+
+# Force kernel to recognize new partitions
+partprobe "$diskInput" 2>/dev/null || true
+blockdev --rereadpt "$diskInput" 2>/dev/null || true
+sleep 2
 
 if [[ "$diskInput" == /dev/nvme* ]] || [[ "$diskInput" == /dev/mmcblk* ]]; then
     idvar="p"
