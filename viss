@@ -10,7 +10,7 @@
 # --- HARDCODED SETTINGS ---
 basesystem="base-system"
 filesystem="ext4"
-su="sudo"
+# su="sudo"  <-- REMOVED: Now set dynamically
 kernel="linux"
 bootloader="uki"
 network="NetworkManager"
@@ -97,10 +97,19 @@ encryptionConfig() {
     else
         encryption="No"
     fi
+    suConfig
+}
+
+# --- 7. PRIVILEGE ESCALATION CHOICE ---
+suConfig() {
+    su=$(drawDialog --no-cancel --title "Privilege Escalation" --menu "Choose your privilege escalation tool:" 0 0 0 \
+        "sudo" "- Standard, widely used privilege escalation" \
+        "doas" "- Lightweight, secure alternative (OpenBSD style)")
+    
     initrdConfig
 }
 
-# --- 7. INITRAMFS CHOICE ---
+# --- 8. INITRAMFS CHOICE ---
 initrdConfig() {
     initrd=$(drawDialog --no-cancel --title "Initramfs Choice" --menu "Select your initramfs generator:" 0 0 0 \
         "dracut" "- Default, robust Void initramfs generator" \
@@ -109,7 +118,7 @@ initrdConfig() {
     gpuDetectConfig
 }
 
-# --- 8. GPU AUTO-DETECTION ---
+# --- 9. GPU AUTO-DETECTION ---
 gpuDetectConfig() {
     if lspci | grep -i "vga\|3d\|display" | grep -qi "nvidia"; then
         graphics="nvidia"
@@ -121,7 +130,7 @@ gpuDetectConfig() {
     appsConfig
 }
 
-# --- 9. ADDITIONAL APPLICATIONS CHECKLIST ---
+# --- 10. ADDITIONAL APPLICATIONS CHECKLIST ---
 appsConfig() {
     local apps_list=(
         "flatpak" "Flatpak package management" off
@@ -143,7 +152,7 @@ appsConfig() {
     confirm
 }
 
-# --- 10. CONFIRMATION ---
+# --- 11. CONFIRMATION ---
 confirm() {
     local settings="Target disk: $diskInput (WILL BE WIPED)\n"
     settings+="Filesystem: ext4\n"
@@ -155,6 +164,7 @@ confirm() {
     settings+="Network: NetworkManager (MAC Randomization enabled)\n"
     settings+="Hostname: $hostname\n"
     settings+="User: $username\n"
+    settings+="Privilege Escalation: $su\n"
     settings+="Timezone: $timezone\n"
     settings+="Locale: ${locale#LANG=}\n"
     settings+="Repo: $repository\n"
