@@ -1,6 +1,21 @@
 #!/bin/bash
 echo "Running setup/disk..."
 
+# --- CLEANUP PREVIOUS FAILED RUNS ---
+# Unmount any partitions on the target disk to prevent "device busy" errors
+for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$'); do
+    echo "Unmounting $mount_point..."
+    umount -l "$mount_point" 2>/dev/null || true
+done
+
+# Close any open LUKS containers on the target disk
+for mapper in /dev/mapper/*; do
+    if [ -e "$mapper" ] && lsblk -ln -o PKNAME "$mapper" 2>/dev/null | grep -q "$(basename "$diskInput")"; then
+        echo "Closing LUKS container $(basename "$mapper")..."
+        cryptsetup close "$(basename "$mapper")" 2>/dev/null || true
+    fi
+done
+
 commandFailure="Disk pre-install wipe has failed."
 wipefs --all -f "$diskInput" || die
 
