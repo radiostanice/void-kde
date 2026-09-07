@@ -1,118 +1,248 @@
 #!/bin/bash
-echo "Running setup/disk..."
 
-# --- CLEANUP PREVIOUS INSTALLATION ---
-echo "Cleaning previous installation..."
+# This script is an "orchestrator" for the other scripts that exist in the "setup" directory.
+# STRICT CONSTRAINTS: ext4, UKI (No GRUB), KDE Wayland, PipeWire, NetworkManager (with MAC randomization).
+# CHOICES: LUKS2 (argon2id) or None, dracut or tinyramfs.
 
-# Delete all partitions first
-scanpartitions="$diskInput"*
-for i in $scanpartitions; do
-    [ -b "$i" ] && wipefs --all -f "$i" 2>/dev/null || true
-done
+. "$(pwd)/misc/libviss" || { echo "$(pwd)/misc/libviss not found. Cannot continue." ; exit 1 ; }
+. "$(pwd)/setup/installer" || { commandFailure="$(pwd)/setup/installer not found. Cannot continue." ; die ; }
 
-# Delete partition table
-sfdisk --delete "$diskInput" 2>/dev/null || true
+# --- HARDCODED SETTINGS ---
+basesystem="base-system"
+filesystem="ext4"
+# kernel="linux"  <-- REMOVED: Now set dynamically
+bootloader="uki"
+network="NetworkManager"
+audio="pipewire"
+desktop="kde"
 
-# Close LUKS containers
-for mapper in /dev/mapper/*; do
-    [ -e "$mapper" ] || continue
-    if lsblk -ln -o PKNAME "$mapper" 2>/dev/null | grep -q "$(basename "$diskInput")"; then
-        echo "Closing LUKS $(basename "$mapper")..."
-        cryptsetup close "$(basename "$mapper")" 2>/dev/null || true
+drawDialog --msgbox "Welcome!\n\nThis installer is customized for a specific, hardened setup:\n- KDE Plasma (Wayland ONLY)\n- ext4 filesystem only\n- UKI Bootloader only (No GRUB)\n- PipeWire + WirePlumber audio\n- NetworkManager with MAC Randomization\n- Hardened fstab defaults\n\nNo changes will be made to the disk until you confirm." 0 0
+
+# --- 1. DISK SELECTION ---
+diskConfig() {
+    local diskList=$(lsblk -d -o NAME,SIZE -n -e7)
+    if diskInput=$(drawDialog --title "Available Disks" --menu "Choose the disk to install Void Linux to (ALL DATA WILL BE WIPED):" 0 0 0 $diskList) ; then
+        diskInput="/dev/$diskInput"
+    else
+        exit 0
     fi
-done
+    userConfig
+}
 
-# Unmount everything
-for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$'); do
-    echo "Unmounting $mount_point..."
-    umount -f -l "$mount_point" 2>/dev/null || true
-done
+# --- 2. USER & HOSTNAME ---
+userConfig() {
+    username=$(drawDialog --title "Create User" --inputbox "Enter your username:" 0 0)
+    [ -z "$username" ] && username="user"
 
-sync
-sleep 2
+    hostname=$(drawDialog --title "System Hostname" --inputbox "Enter your system hostname:" 0 0)
+    [ -z "$hostname" ] && hostname="voidlinux"
 
-# --- WIPE AND PARTITION ---
-commandFailure="Disk pre-install wipe has failed."
-wipefs --all -f "$diskInput" || die
+    timezoneConfig
+}
 
-commandFailure="Writing partition table has failed."
-(
-    echo "g"          # Create GPT
-    echo "n"          # New partition
-    echo "1"          # Partition 1
-    echo ""           # Default first sector
-    echo "+512M"      # 512M for EFI
-    echo "t"          # Change type
-    echo "1"          # Partition 1
-    echo "1"          # EFI System
-    echo "n"          # New partition
-    echo "2"          # Partition 2
-    echo ""           # Default first sector
-    echo ""           # Use all remaining space
-    echo "w"          # Write
-) | fdisk -w always "$diskInput" || { commandFailure="Writing partition table failed." ; die ; }
+# --- 3. DYNAMIC TIMEZONE ---
+timezoneConfig() {
+    local areas=(Africa America Antarctica Arctic Asia Atlantic Australia Europe Indian Pacific)
+    if area=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your region:" 0 0 0 $(printf '%s||' "${areas[@]}")) ; then
+        mapfile -t locations < <(find "/usr/share/zoneinfo/$area" -type f -printf '%P\n' | sort) 2>/dev/null
+        local location=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your location:" 0 0 0 $(printf '%s||' "${locations[@]//_/ }"))
+    fi
+    location=$(echo "$location" | tr ' ' '_')
 
-# Set partition variables
-if [[ "$diskInput" == /dev/nvme* ]] || [[ "$diskInput" == /dev/mmcblk* ]]; then
-    idvar="p"
-else
-    idvar=""
-fi
+    if [ -n "$area" ] && [ -n "$location" ]; then
+        timezone="$area/$location"
+    else
+        timezone="UTC"
+    fi
 
-esp="${diskInput}${idvar}1"
-root="${diskInput}${idvar}2"
+    localeConfig
+}
 
-# Wait for partitions to appear
-for i in {1..10}; do
-    [ -b "$esp" ] && [ -b "$root" ] && break
-    echo "Waiting for partitions... attempt $i"
-    sleep 1
-done
-
-# Verify partitions exist
-[ -b "$esp" ] || { commandFailure="ESP partition $esp does not exist." ; die ; }
-[ -b "$root" ] || { commandFailure="Root partition $root does not exist." ; die ; }
-
-# --- FORMAT ESP ---
-commandFailure="Formatting ESP has failed."
-mkfs.vfat -F 32 "$esp" || die
-
-# --- ENCRYPTION ---
-if [ "$encryption" == "Yes" ]; then
-    commandFailure="Encrypting partition has failed."
-    echo -e "${YELLOW}Enter your encryption passphrase:${NC}"
-    
-    while : ; do
-        cryptsetup luksFormat --type luks2 --batch-mode --verify-passphrase --pbkdf argon2id "$root"
-        [ "$?" -eq 0 ] && break
+# --- 4. DYNAMIC LOCALE ---
+localeConfig() {
+    local localeList=$(grep -E '\.UTF-8' /etc/default/libc-locales | awk '{print $1}' | sed -e 's/^#//')
+    local tmp=()
+    for i in $localeList; do
+        tmp+=("$i" "$i")
     done
 
-    echo -e "${YELLOW}Opening encrypted partition...${NC}"
-    while : ; do
-        cryptsetup luksOpen "$root" void_root
-        [ "$?" -eq 0 ] && break
-    done
+    local localeChoice=$(drawDialog --no-cancel --title "Locale Selection" --menu "Please choose your system locale." 0 0 0 "${tmp[@]}")
+    locale="LANG=$localeChoice"
+    libclocale="$localeChoice UTF-8"
+
+    repositoryConfig
+}
+
+# --- 5. REPOSITORY MIRROR ---
+repositoryConfig() {
+    if drawDialog --title "Repository Mirror" --yesno "Would you like to set a custom repo mirror?\n\nIf 'No', the default Void repo will be used." 0 0 ; then
+        xmirror
+        repository=$(grep -h '^repository=' /etc/xbps.d/*-repository-main.conf 2>/dev/null | head -n 1 | cut -d= -f2 | tr -d '[:space:]')
+    else
+        [ "$libc" == "glibc" ] && repository="https://repo-default.voidlinux.org/current"
+        [ "$libc" == "musl" ] && repository="https://repo-default.voidlinux.org/current/musl"
+    fi
+
+    [ "$libc" == "glibc" ] && ARCH="x86_64"
+    [ "$libc" == "musl" ] && ARCH="x86_64-musl"
+
+    encryptionConfig
+}
+
+# --- 6. ENCRYPTION CHOICE ---
+encryptionConfig() {
+    if drawDialog --title "Disk Encryption" --yesno "Do you want to encrypt the root partition with LUKS2 (argon2id)?\n\nIf 'No', the partition will be unencrypted." 0 0 ; then
+        encryption="Yes"
+    else
+        encryption="No"
+    fi
+    suConfig
+}
+
+# --- 7. PRIVILEGE ESCALATION CHOICE ---
+suConfig() {
+    su=$(drawDialog --no-cancel --title "Privilege Escalation" --menu "Choose your privilege escalation tool:" 0 0 0 \
+        "sudo" "- Standard, widely used privilege escalation" \
+        "doas" "- Lightweight, secure alternative (OpenBSD style)")
     
-    format_target="/dev/mapper/void_root"
-else
-    format_target="$root"
-fi
+    kernelConfig  # <-- CHANGED FROM: initrdConfig
+}
 
-# --- FORMAT ROOT ---
-commandFailure="Formatting root as ext4 has failed."
-mkfs.ext4 -F "$format_target" || die
+# --- 8. KERNEL SELECTION ---
+kernelConfig() {
+    kernel=$(drawDialog --no-cancel --title "Kernel Selection" --menu "Select your Linux kernel:" 0 0 0 \
+        "linux" "- Standard latest stable kernel" \
+        "linux-lts" "- Long Term Support kernel (recommended for stability)")
+    
+    initrdConfig
+}
 
-# --- MOUNT ---
-commandFailure="Mounting partitions has failed."
-mount "$format_target" /mnt || die
+# --- 9. INITRAMFS CHOICE ---
+initrdConfig() {
+    initrd=$(drawDialog --no-cancel --title "Initramfs Choice" --menu "Select your initramfs generator:" 0 0 0 \
+        "dracut" "- Default, robust Void initramfs generator" \
+        "tinyramfs" "- Small, fast POSIX Shell initramfs generator")
 
-mkdir -p /mnt/boot/efi || die
-mount "$esp" /mnt/boot/efi || die
+    gpuDetectConfig
+}
 
-for dir in dev proc sys run; do
-    mkdir -p /mnt/$dir
-    mount --rbind /$dir /mnt/$dir
-    mount --make-rslave /mnt/$dir
-done || die
+# --- 10. GPU AUTO-DETECTION ---
+gpuDetectConfig() {
+    if lspci | grep -i "vga\|3d\|display" | grep -qi "nvidia"; then
+        graphics="nvidia"
+    elif lspci | grep -i "vga\|3d\|display" | grep -qi "amd\|ati\|advanced micro devices"; then
+        graphics="amd"
+    else
+        graphics="intel"
+    fi
+    appsConfig
+}
 
-return 0
+# --- 11. ADDITIONAL APPLICATIONS CHECKLIST ---
+appsConfig() {
+    local apps_list=(
+        "flatpak" "Flatpak package management" off
+        "git" "Git version control" off
+        "vim" "Vim text editor" off
+        "htop" "System monitor" off
+        "blueman" "Bluetooth GUI manager" off
+        "cups" "CUPS printing support" off
+        "ark" "KDE archive manager" off
+        "kate" "KDE advanced text editor" off
+        "dolphin" "KDE file manager" off
+        "zsh" "Zsh shell" off
+        "firefox" "Firefox web browser" off
+    )
+
+    local selected=$(drawDialog --no-cancel --title "Additional Applications" --checklist "Select optional packages to install (Space to select, Enter to confirm):" 0 0 0 "${apps_list[@]}")
+    extra_packages=$(echo "$selected" | tr -d '"')
+
+    confirm
+}
+
+# --- 12. CONFIRMATION ---
+confirm() {
+    local settings="Target disk: $diskInput (WILL BE WIPED)\n"
+    settings+="Filesystem: ext4\n"
+    settings+="Encryption: $encryption\n"
+    settings+="Bootloader: UKI (No GRUB)\n"
+    settings+="Kernel: $kernel\n"
+    settings+="Initramfs: $initrd\n"
+    settings+="Desktop: KDE Plasma (Wayland only)\n"
+    settings+="Audio: PipeWire\n"
+    settings+="Network: NetworkManager (MAC Randomization enabled)\n"
+    settings+="Hostname: $hostname\n"
+    settings+="User: $username\n"
+    settings+="Privilege Escalation: $su\n"
+    settings+="Timezone: $timezone\n"
+    settings+="Locale: ${locale#LANG=}\n"
+    settings+="Repo: $repository\n"
+    settings+="GPU Driver: $graphics\n"
+    [ -n "$extra_packages" ] && settings+="Extra Apps: $extra_packages\n"
+
+    if drawDialog --yes-label "Install" --no-label "Exit" --title "Installation Overview" --yesno "Selecting 'Install' will DESTROY ALL DATA on $diskInput and proceed with these options:\n\n$settings" 0 0 ; then
+        _install
+    else
+        exit 0
+    fi
+}
+
+# --- INSTALLATION EXECUTION ---
+_install() {
+    exec 3>&1 4>&2
+    exec > >(tee -a "$logFile") 2>&1
+
+    {
+        echo "void-install-script log"
+        echo "date: $(date)"
+        echo "commit: $(git -C "$(pwd)" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+        echo "environment: ${libc} ${ARCH} $(uname -r)"
+        echo ""
+        echo "user settings:"
+        echo -e "$settings"
+        echo ""
+    } >> "$logFile"
+
+    echo "Starting installation..."
+    . "$(pwd)"/setup/disk
+
+    # Safe heredoc prevents word-splitting issues with variables
+    cat << EOF > /mnt/tmp/installerOptions
+bootloader='$bootloader'
+su='$su'
+timezone='$timezone'
+encryption='$encryption'
+diskInput='$diskInput'
+username='$username'
+desktop='$desktop'
+root='$root'
+initrd='$initrd'
+graphics='$graphics'
+kernel='$kernel'
+EOF
+
+    . "$(pwd)"/setup/base
+    . "$(pwd)"/setup/desktop
+
+    commandFailure="System chroot setup has failed."
+    cp /etc/resolv.conf /mnt/etc/resolv.conf || die
+
+    cp -f "$(pwd)"/misc/libviss /mnt/tmp/libviss || die
+    cp -f "$(pwd)"/setup/chroot /mnt/tmp/chroot || die
+    system "/bin/bash /tmp/chroot"
+
+    clear
+    system "xbps-remove -RyO"
+    cp -f "$logFile" /mnt/var/log/void-install-script.log
+    exec 1>&3 2>&4
+
+    clear
+    if drawDialog --title "Installation Complete" --yes-label "Reboot" --no-label "Exit" --yesno "Installation finished successfully.\n\nTotal installer runtime: ${SECONDS} seconds." 0 0 ; then
+        reboot now
+    else
+        exit 0
+    fi
+}
+
+# Start the flow
+diskConfig
