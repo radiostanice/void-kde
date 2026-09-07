@@ -1,16 +1,19 @@
 #!/bin/bash
 echo "Running setup/disk..."
 
-# --- AGGRESSIVE CLEANUP FOR RE-RUNS ---
-echo "Cleaning up any previous installation..."
+# --- CLEANUP PREVIOUS INSTALLATION ---
+echo "Cleaning previous installation..."
 
-# Force unmount everything on the target disk
-for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$'); do
-    echo "Force unmounting $mount_point..."
-    umount -f -l "$mount_point" 2>/dev/null || true
+# Delete all partitions first
+scanpartitions="$diskInput"*
+for i in $scanpartitions; do
+    [ -b "$i" ] && wipefs --all -f "$i" 2>/dev/null || true
 done
 
-# Close any LUKS containers
+# Delete partition table
+sfdisk --delete "$diskInput" 2>/dev/null || true
+
+# Close LUKS containers
 for mapper in /dev/mapper/*; do
     [ -e "$mapper" ] || continue
     if lsblk -ln -o PKNAME "$mapper" 2>/dev/null | grep -q "$(basename "$diskInput")"; then
@@ -19,43 +22,37 @@ for mapper in /dev/mapper/*; do
     fi
 done
 
-# Swapoff if any swap on this disk
-for swapdev in $(lsblk -ln -o NAME,FSTYPE "$diskInput" 2>/dev/null | grep swap | awk '{print $1}'); do
-    echo "Disabling swap on $swapdev..."
-    swapoff "/dev/$swapdev" 2>/dev/null || true
+# Unmount everything
+for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$'); do
+    echo "Unmounting $mount_point..."
+    umount -f -l "$mount_point" 2>/dev/null || true
 done
 
-# Force kernel to re-read partition table
-partprobe "$diskInput" 2>/dev/null || true
-blockdev --rereadpt "$diskInput" 2>/dev/null || true
+sync
 sleep 2
 
+# --- WIPE AND PARTITION ---
 commandFailure="Disk pre-install wipe has failed."
 wipefs --all -f "$diskInput" || die
 
-# Clean partition layout: 512M EFI, remaining space Root
 commandFailure="Writing partition table has failed."
 (
-    echo "g"          # Create a new empty GPT partition table
-    echo "n"          # Add a new partition
-    echo "1"          # Partition number 1
-    echo ""           # First sector (default)
-    echo "+512M"      # Last sector (+512M for EFI)
-    echo "t"          # Change partition type
+    echo "g"          # Create GPT
+    echo "n"          # New partition
     echo "1"          # Partition 1
-    echo "1"          # EFI System (hex code EF00)
-    echo "n"          # Add a new partition
-    echo "2"          # Partition number 2
-    echo ""           # First sector (default)
-    echo ""           # Last sector (default, uses all remaining space)
-    echo "w"          # Write table to disk and exit
-) | fdisk -w always "$diskInput" || { commandFailure="Writing partition table to disk has failed." ; die ; }
+    echo ""           # Default first sector
+    echo "+512M"      # 512M for EFI
+    echo "t"          # Change type
+    echo "1"          # Partition 1
+    echo "1"          # EFI System
+    echo "n"          # New partition
+    echo "2"          # Partition 2
+    echo ""           # Default first sector
+    echo ""           # Use all remaining space
+    echo "w"          # Write
+) | fdisk -w always "$diskInput" || { commandFailure="Writing partition table failed." ; die ; }
 
-# Force kernel to recognize new partitions
-partprobe "$diskInput" 2>/dev/null || true
-blockdev --rereadpt "$diskInput" 2>/dev/null || true
-sleep 2
-
+# Set partition variables
 if [[ "$diskInput" == /dev/nvme* ]] || [[ "$diskInput" == /dev/mmcblk* ]]; then
     idvar="p"
 else
@@ -65,25 +62,47 @@ fi
 esp="${diskInput}${idvar}1"
 root="${diskInput}${idvar}2"
 
-commandFailure="Formatting ESP has failed."
-mkfs.fat -F 32 "$esp" || die
+# Wait for partitions to appear
+for i in {1..10}; do
+    [ -b "$esp" ] && [ -b "$root" ] && break
+    echo "Waiting for partitions... attempt $i"
+    sleep 1
+done
 
-# Encryption Support (LUKS2 with argon2id)
+# Verify partitions exist
+[ -b "$esp" ] || { commandFailure="ESP partition $esp does not exist." ; die ; }
+[ -b "$root" ] || { commandFailure="Root partition $root does not exist." ; die ; }
+
+# --- FORMAT ESP ---
+commandFailure="Formatting ESP has failed."
+mkfs.vfat -F 32 "$esp" || die
+
+# --- ENCRYPTION ---
 if [ "$encryption" == "Yes" ]; then
     commandFailure="Encrypting partition has failed."
     echo -e "${YELLOW}Enter your encryption passphrase:${NC}"
-    cryptsetup luksFormat --type luks2 --batch-mode --verify-passphrase --pbkdf argon2id "$root" || die
+    
+    while : ; do
+        cryptsetup luksFormat --type luks2 --batch-mode --verify-passphrase --pbkdf argon2id "$root"
+        [ "$?" -eq 0 ] && break
+    done
 
     echo -e "${YELLOW}Opening encrypted partition...${NC}"
-    cryptsetup luksOpen "$root" void_root || die
+    while : ; do
+        cryptsetup luksOpen "$root" void_root
+        [ "$?" -eq 0 ] && break
+    done
+    
     format_target="/dev/mapper/void_root"
 else
     format_target="$root"
 fi
 
+# --- FORMAT ROOT ---
 commandFailure="Formatting root as ext4 has failed."
 mkfs.ext4 -F "$format_target" || die
 
+# --- MOUNT ---
 commandFailure="Mounting partitions has failed."
 mount "$format_target" /mnt || die
 
