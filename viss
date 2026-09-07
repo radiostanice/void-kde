@@ -1,22 +1,19 @@
 #!/bin/bash
 echo "Running setup/disk..."
 
-# --- NUCLEAR CLEANUP ---
-echo "Forcefully cleaning previous installation..."
+# --- CLEANUP PREVIOUS INSTALLATION ---
+echo "Cleaning previous installation..."
 
-# 1. Remove partition mappings with kpartx
-kpartx -d "$diskInput" 2>/dev/null || true
-
-# 2. Delete partition entries with partx
-partx -d "$diskInput" 2>/dev/null || true
-
-# 3. Unmount everything
-for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$'); do
-    echo "Force unmounting $mount_point..."
-    umount -f -l "$mount_point" 2>/dev/null || true
+# Delete all partitions first
+scanpartitions="$diskInput"*
+for i in $scanpartitions; do
+    [ -b "$i" ] && wipefs --all -f "$i" 2>/dev/null || true
 done
 
-# 4. Close LUKS containers
+# Delete partition table
+sfdisk --delete "$diskInput" 2>/dev/null || true
+
+# Close LUKS containers
 for mapper in /dev/mapper/*; do
     [ -e "$mapper" ] || continue
     if lsblk -ln -o PKNAME "$mapper" 2>/dev/null | grep -q "$(basename "$diskInput")"; then
@@ -25,41 +22,37 @@ for mapper in /dev/mapper/*; do
     fi
 done
 
-# 5. Remove device mapper entries
-dmsetup remove_all 2>/dev/null || true
+# Unmount everything
+for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$'); do
+    echo "Unmounting $mount_point..."
+    umount -f -l "$mount_point" 2>/dev/null || true
+done
 
-# 6. Sync and wait
-sync
-sleep 3
-
-# 7. NOW wipe the disk
-commandFailure="Disk pre-install wipe has failed."
-wipefs --all -f "$diskInput" || die
-
-# 8. Create fresh partition table
-commandFailure="Writing partition table has failed."
-(
-    echo "g"
-    echo "n"
-    echo "1"
-    echo ""
-    echo "+512M"
-    echo "t"
-    echo "1"
-    echo "1"
-    echo "n"
-    echo "2"
-    echo ""
-    echo ""
-    echo "w"
-) | fdisk -w always "$diskInput" 2>&1 | tee /tmp/fdisk.log
-
-# 9. Force kernel to forget old partitions
-partx -d "$diskInput" 2>/dev/null || true
-blockdev --flushbufs "$diskInput" 2>/dev/null || true
 sync
 sleep 2
 
+# --- WIPE AND PARTITION ---
+commandFailure="Disk pre-install wipe has failed."
+wipefs --all -f "$diskInput" || die
+
+commandFailure="Writing partition table has failed."
+(
+    echo "g"          # Create GPT
+    echo "n"          # New partition
+    echo "1"          # Partition 1
+    echo ""           # Default first sector
+    echo "+512M"      # 512M for EFI
+    echo "t"          # Change type
+    echo "1"          # Partition 1
+    echo "1"          # EFI System
+    echo "n"          # New partition
+    echo "2"          # Partition 2
+    echo ""           # Default first sector
+    echo ""           # Use all remaining space
+    echo "w"          # Write
+) | fdisk -w always "$diskInput" || { commandFailure="Writing partition table failed." ; die ; }
+
+# Set partition variables
 if [[ "$diskInput" == /dev/nvme* ]] || [[ "$diskInput" == /dev/mmcblk* ]]; then
     idvar="p"
 else
@@ -69,32 +62,47 @@ fi
 esp="${diskInput}${idvar}1"
 root="${diskInput}${idvar}2"
 
-# 10. Wait for devices to appear
-for i in {1..5}; do
+# Wait for partitions to appear
+for i in {1..10}; do
     [ -b "$esp" ] && [ -b "$root" ] && break
     echo "Waiting for partitions... attempt $i"
     sleep 1
 done
 
-commandFailure="Formatting ESP has failed."
-mkfs.fat -F 32 "$esp" || die
+# Verify partitions exist
+[ -b "$esp" ] || { commandFailure="ESP partition $esp does not exist." ; die ; }
+[ -b "$root" ] || { commandFailure="Root partition $root does not exist." ; die ; }
 
-# Encryption Support
+# --- FORMAT ESP ---
+commandFailure="Formatting ESP has failed."
+mkfs.vfat -F 32 "$esp" || die
+
+# --- ENCRYPTION ---
 if [ "$encryption" == "Yes" ]; then
     commandFailure="Encrypting partition has failed."
     echo -e "${YELLOW}Enter your encryption passphrase:${NC}"
-    cryptsetup luksFormat --type luks2 --batch-mode --verify-passphrase --pbkdf argon2id "$root" || die
+    
+    while : ; do
+        cryptsetup luksFormat --type luks2 --batch-mode --verify-passphrase --pbkdf argon2id "$root"
+        [ "$?" -eq 0 ] && break
+    done
 
     echo -e "${YELLOW}Opening encrypted partition...${NC}"
-    cryptsetup luksOpen "$root" void_root || die
+    while : ; do
+        cryptsetup luksOpen "$root" void_root
+        [ "$?" -eq 0 ] && break
+    done
+    
     format_target="/dev/mapper/void_root"
 else
     format_target="$root"
 fi
 
+# --- FORMAT ROOT ---
 commandFailure="Formatting root as ext4 has failed."
 mkfs.ext4 -F "$format_target" || die
 
+# --- MOUNT ---
 commandFailure="Mounting partitions has failed."
 mount "$format_target" /mnt || die
 
