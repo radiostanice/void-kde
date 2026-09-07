@@ -48,6 +48,9 @@ echo "UUID=$root_uuid / ext4 rw,noatime,nodiratime,errors=remount-ro 0 1" >> /mn
 echo "tmpfs /tmp tmpfs defaults,nosuid,nodev 0 0" >> /mnt/etc/fstab || die
 
 # 4. UKI Kernel Command Line
+# FIX: Create the directory before writing to it
+mkdir -p /mnt/etc/kernel || die
+
 if [ "$encryption" == "Yes" ]; then
     luks_uuid=$(blkid -o value -s UUID "$root")
     if [ "$initrd" == "dracut" ]; then
