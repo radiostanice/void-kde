@@ -8,8 +8,8 @@ wipefs --all -f "$diskInput" || die
 commandFailure="Writing partition table has failed."
 sfdisk "$diskInput" <<EOF
 label: gpt
-,512M, type=U
-, type=L
+512M, type=EF00
+type=8300
 EOF
 
 if [[ "$diskInput" == /dev/nvme* ]] || [[ "$diskInput" == /dev/mmcblk* ]]; then
