@@ -4,13 +4,24 @@ echo "Running setup/disk..."
 commandFailure="Disk pre-install wipe has failed."
 wipefs --all -f "$diskInput" || die
 
-# Clean sfdisk layout: 512M EFI, remaining space Root
+# Clean partition layout: 512M EFI, remaining space Root
+# Using fdisk via echo pipe for maximum compatibility across all util-linux versions
 commandFailure="Writing partition table has failed."
-sfdisk "$diskInput" <<EOF
-label: gpt
-512M, type=EF00
-type=8300
-EOF
+(
+    echo "g"          # Create a new empty GPT partition table
+    echo "n"          # Add a new partition
+    echo "1"          # Partition number 1
+    echo ""           # First sector (default)
+    echo "+512M"      # Last sector (+512M for EFI)
+    echo "t"          # Change partition type
+    echo "1"          # Partition 1
+    echo "1"          # EFI System (hex code EF00)
+    echo "n"          # Add a new partition
+    echo "2"          # Partition number 2
+    echo ""           # First sector (default)
+    echo ""           # Last sector (default, uses all remaining space)
+    echo "w"          # Write table to disk and exit
+) | fdisk -w always "$diskInput" || { commandFailure="Writing partition table to disk has failed." ; die ; }
 
 if [[ "$diskInput" == /dev/nvme* ]] || [[ "$diskInput" == /dev/mmcblk* ]]; then
     idvar="p"
