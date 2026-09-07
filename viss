@@ -10,8 +10,6 @@
 # --- HARDCODED SETTINGS ---
 basesystem="base-system"
 filesystem="ext4"
-# su="sudo"  <-- REMOVED: Now set dynamically
-kernel="linux"
 bootloader="uki"
 network="NetworkManager"
 audio="pipewire"
@@ -105,6 +103,15 @@ suConfig() {
     su=$(drawDialog --no-cancel --title "Privilege Escalation" --menu "Choose your privilege escalation tool:" 0 0 0 \
         "sudo" "- Standard, widely used privilege escalation" \
         "doas" "- Lightweight, secure alternative (OpenBSD style)")
+    
+    kernelConfig
+}
+
+# --- 8. KERNEL SELECTION ---
+kernelConfig() {
+    kernel=$(drawDialog --no-cancel --title "Kernel Selection" --menu "Select your Linux kernel:" 0 0 0 \
+        "linux" "- Standard latest stable kernel" \
+        "linux-lts" "- Long Term Support kernel")
     
     initrdConfig
 }
