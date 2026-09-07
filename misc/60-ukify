@@ -7,6 +7,9 @@ VERSION="$2"
 
 [ -x /usr/bin/ukify ] || exit 0
 
+# Define ROOTDIR as root filesystem
+ROOTDIR=""
+
 # Read kernel command line from file if it exists, otherwise use a safe default
 CMDLINE="loglevel=4"
 if [ -f "${ROOTDIR}/etc/kernel/cmdline" ]; then
