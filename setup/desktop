@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# FIX: Consume the graphics variable passed from the installer
+graphicsArray=($graphics)
+
+[ -n "$graphics" ] && commandFailure="Graphics driver installation has failed."
+for i in "${graphicsArray[@]}"; do
+    case $i in
+        amd) install mesa-dri vulkan-loader mesa-vulkan-radeon mesa-vaapi ;;
+        nvidia)
+            install void-repo-nonfree
+            if [ "$kernel" == "linux-lts" ]; then
+                install nvidia-lts
+            else
+                install nvidia
+            fi
+            setKernelParam "nvidia_drm.modeset=1"
+            ;;
+        intel) install mesa-dri vulkan-loader mesa-vulkan-intel intel-video-accel ;;
+        nouveau) install mesa-dri mesa-nouveau-dri ;;
+    esac
+done
+
+[ -n "$network" ] && [ "$network" != "none" ] && commandFailure="DHCP client setup has failed."
+case "$network" in
+    NetworkManager) install NetworkManager; enableService NetworkManager ;;
+    dhcpcd) enableService dhcpcd ;;
+esac
+
+commandFailure="GUI installation has failed"
+# FIX: Use 'kde-plasma' instead of the transitional 'kde5' package
+install kde-plasma xdg-user-dirs xdg-utils chromium elogind polkit-elogind
+enableService elogind
+enableService polkitd
+
+commandFailure="Audio server installation has failed."
+install pipewire wireplumber alsa-pipewire
+
+# ALSA configuration for pipewire
+system "mkdir -p /etc/alsa/conf.d"
+system "ln -sf /usr/share/alsa/alsa.conf.d/50-pipewire.conf /etc/alsa/conf.d/50-pipewire.conf"
+system "ln -sf /usr/share/alsa/alsa.conf.d/99-pipewire-default.conf /etc/alsa/conf.d/99-pipewire-default.conf"
+
+return 0

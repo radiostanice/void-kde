@@ -1,0 +1,98 @@
+#!/bin/bash
+
+commandFailure="Copying XBPS keys has failed."
+mkdir -p /mnt/var/db/xbps/keys || die
+cp /var/db/xbps/keys/* /mnt/var/db/xbps/keys || die
+
+# --- PRE-INSTALL IGNOREPKG CONFIGURATION ---
+mkdir -p /mnt/etc/xbps.d
+if [ "$su" != "sudo" ]; then
+    echo "ignorepkg=sudo" >> /mnt/etc/xbps.d/ignore.conf || die
+fi
+if [ "$kernel" != "linux" ] ; then
+    echo "ignorepkg=linux" >> /mnt/etc/xbps.d/ignore.conf || die
+fi
+
+commandFailure="Base system installation has failed."
+XBPS_ARCH=$ARCH install base-system e2fsprogs binutils chrony
+
+if [ "$kernel" != "linux" ] ; then
+    install "$kernel"
+    system "xbps-remove -RyO linux"
+fi
+
+if [ "$su" == "doas" ]; then
+    install opendoas
+fi
+
+# UKI & Initramfs Dependencies
+commandFailure="UKI/Initramfs package installation has failed."
+install efibootmgr ukify "$initrd"
+
+if [ "$repository" != "https://repo-default.voidlinux.org/current" ] && [ "$repository" != "https://repo-default.voidlinux.org/current/musl" ]; then
+    xmirror -s "$repository" -r /mnt || { commandFailure="Repository configuration failed." ; die ; }
+fi
+
+# --- HARDENED FSTAB CONFIGURATION ---
+commandFailure="Configuring fstab has failed."
+esp_uuid=$(blkid -o value -s UUID "$esp")
+root_uuid=$(blkid -o value -s UUID "$format_target")
+
+# 1. Hardened ESP (/boot/efi)
+echo "UUID=$esp_uuid /boot/efi vfat rw,nosuid,nodev,noexec,umask=0022,flush 0 2" >> /mnt/etc/fstab || die
+
+# 2. Root Partition (ext4 with hardened flags)
+echo "UUID=$root_uuid / ext4 rw,noatime,nodiratime,errors=remount-ro 0 1" >> /mnt/etc/fstab || die
+
+# 3. Hardened tmpfs for /tmp
+echo "tmpfs /tmp tmpfs defaults,nosuid,nodev 0 0" >> /mnt/etc/fstab || die
+
+# 4. UKI Kernel Command Line
+if [ "$encryption" == "Yes" ]; then
+    luks_uuid=$(blkid -o value -s UUID "$root")
+    if [ "$initrd" == "dracut" ]; then
+        echo "rd.luks.name=$luks_uuid=void_root root=/dev/mapper/void_root rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
+    else
+        echo "cryptdevice=UUID=$luks_uuid:void_root root=/dev/mapper/void_root rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
+    fi
+else
+    echo "root=UUID=$root_uuid rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
+fi
+
+# --- LOCALE & HOSTNAME ---
+if [ "$libc" == "glibc" ]; then
+    echo "$locale" > /mnt/etc/locale.conf || die
+    echo "$libclocale" >> /mnt/etc/default/libc-locales || die
+fi
+echo "$hostname" > /mnt/etc/hostname || die
+
+# --- NETWORK MANAGER MAC RANDOMIZATION ---
+commandFailure="Configuring NetworkManager MAC randomization failed."
+mkdir -p /mnt/etc/NetworkManager/conf.d
+cat << 'EOF' > /mnt/etc/NetworkManager/conf.d/00-mac-randomize.conf
+[device]
+wifi.scan-rand-mac-address=yes
+
+[connection]
+wifi.mac-address-randomization=1
+ethernet.mac-address-randomization=1
+EOF
+
+# --- NTS SECURE TIME SYNC ---
+commandFailure="Configuring Chrony for NTS has failed."
+cat << 'EOF' > /mnt/etc/chrony.conf
+pool time.cloudflare.com iburst nts
+makestep 1.0 3
+rtcsync
+logdir /var/log/chrony
+log measurements statistics tracking
+EOF
+enableService chronyd
+
+# --- INSTALL ADDITIONAL APPS ---
+if [ -n "$extra_packages" ]; then
+    commandFailure="Additional packages installation has failed."
+    install $extra_packages
+fi
+
+return 0

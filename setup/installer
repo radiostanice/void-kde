@@ -1,0 +1,44 @@
+#!/bin/bash
+# Basic checks and setup before the installer reaches configuration
+
+echo "Running basic checks..."
+
+[ "$(id -u)" -ne 0 ] &&
+    echo -e "${RED}Please execute this script as root.${NC}" && exit 1
+
+# FIX: Removed all ZFS/BTRFS/LVM/xtools leftover file checks
+dependencies=("setup/base" "setup/desktop" "setup/disk" "setup/chroot" "misc/60-ukify" "misc/libviss")
+
+for i in ${dependencies[@]}; do
+    [ -e "$i" ] ||
+        { commandFailure="$i appears to be missing. This could be because it is incorrectly named, or it does not exist." ; die ; }
+done
+
+[ -e "/sys/firmware/efi" ] ||
+    { commandFailure="This script only supports UEFI systems, but it appears we have booted as BIOS." ; die ; }
+
+[ "$(uname -m)" != "x86_64" ] &&
+    { commandFailure="This systems CPU architecture is not currently supported by this installer." ; die ; }
+
+echo "Finding out what libc is being used..."
+if ldd --version | grep GNU ; then
+    libc="glibc"
+else
+    libc="musl"
+fi
+
+echo "Testing for network connectivity..."
+ping -c 1 gnu.org &>/dev/null && ping -c 1 fsf.org &>/dev/null ||
+    { commandFailure="Network check has failed. Please make sure you are connected to the internet." ; die ; }
+
+commandFailure="Dependency installation has failed."
+xbps-install -Suy xbps || die
+xbps-install -Suy dialog || die
+
+dialog --create-rc ~/.dialogrc
+sed -i -e 's/screen_color = (CYAN,BLUE,ON)/screen_color = (BLACK,BLACK,ON)/g' ~/.dialogrc
+sed -i -e 's/title_color = (BLUE,WHITE,ON)/title_color = (BLACK,WHITE,ON)/g' ~/.dialogrc
+
+logFile="/tmp/void-install-script.log"
+
+return 0

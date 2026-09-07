@@ -1,0 +1,55 @@
+#!/bin/bash
+echo "Running setup/disk..."
+
+commandFailure="Disk pre-install wipe has failed."
+wipefs --all -f "$diskInput" || die
+
+# Clean sfdisk layout: 512M EFI, remaining space Root
+commandFailure="Writing partition table has failed."
+sfdisk "$diskInput" <<EOF
+label: gpt
+,512M, type=U
+, type=L
+EOF
+
+if [[ "$diskInput" == /dev/nvme* ]] || [[ "$diskInput" == /dev/mmcblk* ]]; then
+    idvar="p"
+else
+    idvar=""
+fi
+
+esp="${diskInput}${idvar}1"
+root="${diskInput}${idvar}2"
+
+commandFailure="Formatting ESP has failed."
+mkfs.fat -F 32 "$esp" || die
+
+# Encryption Support (LUKS2 with argon2id)
+if [ "$encryption" == "Yes" ]; then
+    commandFailure="Encrypting partition has failed."
+    echo -e "${YELLOW}Enter your encryption passphrase:${NC}"
+    cryptsetup luksFormat --type luks2 --batch-mode --verify-passphrase --pbkdf argon2id "$root" || die
+
+    echo -e "${YELLOW}Opening encrypted partition...${NC}"
+    cryptsetup luksOpen "$root" void_root || die
+    format_target="/dev/mapper/void_root"
+else
+    format_target="$root"
+fi
+
+commandFailure="Formatting root as ext4 has failed."
+mkfs.ext4 -F "$format_target" || die
+
+commandFailure="Mounting partitions has failed."
+mount "$format_target" /mnt || die
+
+mkdir -p /mnt/boot/efi || die
+mount "$esp" /mnt/boot/efi || die
+
+for dir in dev proc sys run; do
+    mkdir -p /mnt/$dir
+    mount --rbind /$dir /mnt/$dir
+    mount --make-rslave /mnt/$dir
+done || die
+
+return 0

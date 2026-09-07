@@ -1,0 +1,106 @@
+#!/bin/bash
+
+. "/tmp/libviss" || { echo "/tmp/libviss not found." ; exit 1 ; }
+. "/tmp/installerOptions" || { commandFailure="Sourcing installer options failed." ; die ; }
+
+exitFunction () {
+    xbps-reconfigure -fa || { commandFailure="xbps-reconfigure failed." ; die ; }
+    exit 0
+}
+
+userPassword() {
+    echo -e "${YELLOW}Set password for user $username: ${NC}"
+    while : ; do passwd "$username"; [ "$?" -eq 0 ] && break; done
+    exitFunction
+}
+
+rootPassword() {
+    echo -e "${YELLOW}Set your root password: ${NC}"
+    while : ; do passwd root; [ "$?" -eq 0 ] && break; done
+    [ -n "$username" ] && userPassword
+    exitFunction
+}
+
+chown root:root / || die
+chmod 755 / || die
+
+[ -e /etc/sv/dbus ] && { ln -s /etc/sv/dbus /var/service || die ; }
+
+# --- UKI GENERATION & REGISTRATION ---
+commandFailure="UKI generation has failed."
+cp /tmp/60-ukify /etc/kernel.d/post-install/60-ukify || die
+chmod 755 /etc/kernel.d/post-install/60-ukify || die
+
+# Dynamically find the installed kernel package (e.g., linux, linux-lts)
+kernel_pkg=$(xbps-query -l | awk '$1 == "ii" && $2 ~ /^linux/ {print $2}' | sed 's/-[0-9].*//' | head -n 1)
+if [ -z "$kernel_pkg" ]; then
+    commandFailure="Could not detect installed kernel package."
+    die
+fi
+xbps-reconfigure -f "$kernel_pkg" || die
+
+# Register the UKI with UEFI NVRAM
+efi_label="Void Linux"
+efi_stub="/boot/efi/EFI/Linux/void-linux.efi"
+if [ -f "$efi_stub" ]; then
+    commandFailure="efibootmgr registration failed."
+    efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 --loader "\EFI\Linux\void-linux.efi" || die
+else
+    commandFailure="UKI stub not found at $efi_stub"
+    die
+fi
+
+ln -sf /usr/share/zoneinfo/"$timezone" /etc/localtime || die
+
+if [ "$su" == "doas" ]; then
+    echo "permit persist :wheel" > /etc/doas.conf || die
+    chown root:root /etc/doas.conf || die
+    chmod 0400 /etc/doas.conf || die
+    ln -sf /usr/bin/doas /usr/bin/sudo || die
+fi
+
+# Extract just the locale string (e.g., "en_US.UTF-8") from "LANG=en_US.UTF-8"
+sys_locale="${locale#LANG=}"
+[ -z "$sys_locale" ] && sys_locale="en_US.UTF-8"
+
+if [ -z "$username" ]; then
+    clear; rootPassword
+else
+    useradd "$username" -m -d /home/"$username" || die
+    usermod -aG audio,video,kvm,wheel "$username" || die
+
+    cat << EOF > /home/"$username"/.bash_profile
+export CHROMIUM_FLAGS="--ozone-platform-hint=wayland --force-device-scale-factor=1.0"
+export GOOGLE_API_KEY="no"
+export GOOGLE_DEFAULT_CLIENT_ID="no"
+export GOOGLE_DEFAULT_CLIENT_SECRET="no"
+export LANG=${sys_locale}
+export LC_ALL=${sys_locale}
+
+if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
+        export XDG_RUNTIME_DIR="/run/user/\$(id -u)"
+        if [ ! -d "\$XDG_RUNTIME_DIR" ]; then
+                mkdir -p "\$XDG_RUNTIME_DIR"
+                chmod 700 "\$XDG_RUNTIME_DIR"
+        fi
+        export XDG_SESSION_TYPE=wayland
+        export XDG_CURRENT_DESKTOP=KDE
+        export QT_QPA_PLATFORM=wayland
+        exec dbus-run-session startplasma-wayland
+fi
+EOF
+
+    chown "$username":"$username" /home/"$username"/.bash_profile
+    chmod 644 /home/"$username"/.bash_profile
+
+    # TTY1 Autologin
+    mkdir -p /etc/sv/agetty-tty1
+    cat << RUNEOF > /etc/sv/agetty-tty1/run
+#!/bin/sh
+exec agetty --autologin $username --noclear tty1 linux
+RUNEOF
+    chmod +x /etc/sv/agetty-tty1/run
+    ln -sf /etc/sv/agetty-tty1 /var/service/agetty-tty1
+
+    clear; rootPassword
+fi
