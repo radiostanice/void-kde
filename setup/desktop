@@ -56,7 +56,6 @@ install kwin xorg-server-xwayland
 install elogind polkit-elogind dbus
 enableService elogind
 enableService polkitd
-enableService dbus
 
 # Plasma-specific integrations for audio and network system tray widgets
 install plasma-pa plasma-nm
