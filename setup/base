@@ -1,19 +1,25 @@
 #!/bin/bash
 
 commandFailure="Copying XBPS keys has failed."
+
 mkdir -p /mnt/var/db/xbps/keys || die
 cp /var/db/xbps/keys/* /mnt/var/db/xbps/keys || die
 
 # --- PRE-INSTALL IGNOREPKG CONFIGURATION ---
 mkdir -p /mnt/etc/xbps.d
+
+# FIX: Added spaces around !=
 if [ "$su" != "sudo" ]; then
     echo "ignorepkg=sudo" >> /mnt/etc/xbps.d/ignore.conf || die
 fi
+
+# FIX: Added spaces around !=
 if [ "$kernel" != "linux" ] ; then
     echo "ignorepkg=linux" >> /mnt/etc/xbps.d/ignore.conf || die
 fi
 
 commandFailure="Base system installation has failed."
+
 XBPS_ARCH=$ARCH install base-system e2fsprogs binutils chrony
 
 if [ "$kernel" != "linux" ] ; then
@@ -21,7 +27,8 @@ if [ "$kernel" != "linux" ] ; then
     system "xbps-remove -RyO linux"
 fi
 
-if [ "$su" == "doas" ]; then
+# FIX: Added spaces around =
+if [ "$su" = "doas" ]; then
     install opendoas
 fi
 
@@ -29,12 +36,14 @@ fi
 commandFailure="UKI/Initramfs package installation has failed."
 install efibootmgr ukify "$initrd"
 
+# FIX: Added spaces around !=
 if [ "$repository" != "https://repo-default.voidlinux.org/current" ] && [ "$repository" != "https://repo-default.voidlinux.org/current/musl" ]; then
-    xmirror -s "$repository" -r /mnt || { commandFailure="Repository configuration failed." ; die ; }
+    xmirror -s "$repository" -r /mnt || { commandFailure="Repository configuration failed."; die ; }
 fi
 
 # --- HARDENED FSTAB CONFIGURATION ---
 commandFailure="Configuring fstab has failed."
+
 esp_uuid=$(blkid -o value -s UUID "$esp")
 root_uuid=$(blkid -o value -s UUID "$format_target")
 
@@ -51,9 +60,10 @@ echo "tmpfs /tmp tmpfs defaults,nosuid,nodev 0 0" >> /mnt/etc/fstab || die
 # Create the directory BEFORE writing to it
 mkdir -p /mnt/etc/kernel || die
 
-if [ "$encryption" == "Yes" ]; then
+# FIX: Added spaces around =
+if [ "$encryption" = "Yes" ]; then
     luks_uuid=$(blkid -o value -s UUID "$root")
-    if [ "$initrd" == "dracut" ]; then
+    if [ "$initrd" = "dracut" ]; then
         echo "rd.luks.name=$luks_uuid=void_root root=/dev/mapper/void_root rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
     else
         echo "cryptdevice=UUID=$luks_uuid:void_root root=/dev/mapper/void_root rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
@@ -63,7 +73,7 @@ else
 fi
 
 # --- LOCALE & HOSTNAME ---
-if [ "$libc" == "glibc" ]; then
+if [ "$libc" = "glibc" ]; then
     echo "$locale" > /mnt/etc/locale.conf || die
     echo "$libclocale" >> /mnt/etc/default/libc-locales || die
 fi
@@ -72,6 +82,7 @@ echo "$hostname" > /mnt/etc/hostname || die
 # --- NETWORK MANAGER MAC RANDOMIZATION ---
 commandFailure="Configuring NetworkManager MAC randomization failed."
 mkdir -p /mnt/etc/NetworkManager/conf.d
+
 cat << 'EOF' > /mnt/etc/NetworkManager/conf.d/00-mac-randomize.conf
 [device]
 wifi.scan-rand-mac-address=yes
@@ -90,6 +101,7 @@ rtcsync
 logdir /var/log/chrony
 log measurements statistics tracking
 EOF
+
 enableService chronyd
 
 # --- INSTALL ADDITIONAL APPS ---
