@@ -223,6 +223,7 @@ _install() {
     . "$(pwd)"/setup/disk
 
     # Safe heredoc prevents word-splitting issues with variables
+    mkdir -p /mnt/tmp
     cat << EOF > /mnt/tmp/installerOptions
 bootloader='$bootloader'
 su='$su'
