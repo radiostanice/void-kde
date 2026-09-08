@@ -28,6 +28,10 @@ chmod 755 / || die
 
 # --- UKI GENERATION & REGISTRATION ---
 commandFailure="UKI generation has failed."
+
+# Ensure the UKI output directory exists BEFORE reconfiguring kernel
+mkdir -p /boot/efi/EFI/Linux || die
+
 cp /tmp/60-ukify /etc/kernel.d/post-install/60-ukify || die
 chmod 755 /etc/kernel.d/post-install/60-ukify || die
 
@@ -37,7 +41,15 @@ if [ -z "$kernel_pkg" ]; then
     commandFailure="Could not detect installed kernel package."
     die
 fi
+
+# Force kernel reconfiguration to trigger UKI generation
 xbps-reconfigure -f "$kernel_pkg" || die
+
+# Verify UKI was actually created before proceeding
+if [ ! -f "/boot/efi/EFI/Linux/void-linux.efi" ]; then
+    commandFailure="UKI stub not created at /boot/efi/EFI/Linux/void-linux.efi. Check /var/log/xbps.log for ukify errors."
+    die
+fi
 
 # Register the UKI with UEFI NVRAM
 efi_label="Void Linux"
