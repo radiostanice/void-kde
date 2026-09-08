@@ -5,6 +5,15 @@
 
 exitFunction () {
     xbps-reconfigure -fa || { commandFailure="xbps-reconfigure failed." ; die ; }
+    
+    # SAFETY ADDITION: Force the new "Void Linux" entry to the top of the UEFI boot order.
+    # This prevents stubborn motherboards from ignoring the new UKI entry.
+    if [ "$bootloader" == "uki" ]; then
+        commandFailure="Setting default boot entry has failed."
+        bootEntry=$(efibootmgr --unicode | grep "Void Linux" | while read c1 c2; do echo $c1; done | sed 's/Boot//g' | sed 's/*//g') || die
+        efibootmgr --bootorder $bootEntry || die
+    fi
+    
     exit 0
 }
 
