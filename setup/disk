@@ -4,16 +4,13 @@ echo "Running setup/disk..."
 # --- CLEANUP PREVIOUS INSTALLATION ---
 echo "Cleaning previous installation..."
 
-# Delete all partitions first
-scanpartitions="$diskInput"*
-for i in $scanpartitions; do
-    [ -b "$i" ] && wipefs --all -f "$i" 2>/dev/null || true
+# 1. Unmount everything first (critical before wiping)
+for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$'); do
+    echo "Unmounting $mount_point..."
+    umount -f -l "$mount_point" 2>/dev/null || true
 done
 
-# Delete partition table
-sfdisk --delete "$diskInput" 2>/dev/null || true
-
-# Close LUKS containers
+# 2. Close LUKS containers
 for mapper in /dev/mapper/*; do
     [ -e "$mapper" ] || continue
     if lsblk -ln -o PKNAME "$mapper" 2>/dev/null | grep -q "$(basename "$diskInput")"; then
@@ -22,14 +19,27 @@ for mapper in /dev/mapper/*; do
     fi
 done
 
-# Unmount everything
-for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$'); do
-    echo "Unmounting $mount_point..."
-    umount -f -l "$mount_point" 2>/dev/null || true
+# 3. Wipe filesystem signatures from the disk and all its partitions
+wipefs --all --force "$diskInput" 2>/dev/null || true
+for part in "${diskInput}"*; do
+    [ -b "$part" ] && wipefs --all --force "$part" 2>/dev/null || true
 done
 
-sync
-sleep 2
+# 4. Zap GPT partition table (clears both primary and backup headers)
+if command -v sgdisk >/dev/null 2>&1; then
+    sgdisk --zap-all "$diskInput" 2>/dev/null || true
+else
+    # Fallback: zero out the first 10MB to destroy primary GPT
+    dd if=/dev/zero of="$diskInput" bs=1M count=10 status=none 2>/dev/null || true
+fi
+
+# 5. Delete partition table via sfdisk as an extra measure
+sfdisk --delete "$diskInput" 2>/dev/null || true
+
+# 6. Force kernel to drop old partition cache and recognize changes
+blockdev --rereadpt "$diskInput" 2>/dev/null || true
+partprobe "$diskInput" 2>/dev/null || true
+udevadm settle
 
 # --- WIPE AND PARTITION ---
 commandFailure="Disk pre-install wipe has failed."
@@ -51,6 +61,10 @@ commandFailure="Writing partition table has failed."
     echo ""           # Use all remaining space
     echo "w"          # Write
 ) | fdisk -w always "$diskInput" || { commandFailure="Writing partition table failed." ; die ; }
+
+# Force kernel to recognize new partitions immediately
+partprobe "$diskInput" 2>/dev/null || true
+udevadm settle
 
 # Set partition variables
 if [[ "$diskInput" == /dev/nvme* ]] || [[ "$diskInput" == /dev/mmcblk* ]]; then
