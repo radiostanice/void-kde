@@ -1,16 +1,17 @@
 #!/bin/bash
 
 # This script is an "orchestrator" for the other scripts that exist in the "setup" directory.
+
 # STRICT CONSTRAINTS: ext4, UKI (No GRUB), KDE Wayland, PipeWire, NetworkManager (with MAC randomization).
 # CHOICES: LUKS2 (argon2id) or None, dracut or tinyramfs.
 
-. "$(pwd)/misc/libviss" || { echo "$(pwd)/misc/libviss not found. Cannot continue." ; exit 1 ; }
-. "$(pwd)/setup/installer" || { commandFailure="$(pwd)/setup/installer not found. Cannot continue." ; die ; }
+. "$(pwd)/misc/libviss" || { echo "$(pwd)/misc/libviss not found. Cannot continue."; exit 1 ; }
+. "$(pwd)/setup/installer" || { commandFailure="$(pwd)/setup/installer not found. Cannot continue."; die ; }
 
 # --- HARDCODED SETTINGS ---
 basesystem="base-system"
 filesystem="ext4"
-# kernel="linux"  <-- REMOVED: Now set dynamically
+# kernel="linux" <-- REMOVED: Now set dynamically
 bootloader="uki"
 network="NetworkManager"
 audio="pipewire"
@@ -21,7 +22,7 @@ drawDialog --msgbox "Welcome!\n\nThis installer is customized for a specific, ha
 # --- 1. DISK SELECTION ---
 diskConfig() {
     local diskList=$(lsblk -d -o NAME,SIZE -n -e7)
-    if diskInput=$(drawDialog --title "Available Disks" --menu "Choose the disk to install Void Linux to (ALL DATA WILL BE WIPED):" 0 0 0 $diskList) ; then
+    if diskInput=$(drawDialog --title "Available Disks" --menu "Choose the disk to install Void Linux to (ALL DATA WILL BE WIPED):" 0 0 0 $diskList); then
         diskInput="/dev/$diskInput"
     else
         exit 0
@@ -33,28 +34,24 @@ diskConfig() {
 userConfig() {
     username=$(drawDialog --title "Create User" --inputbox "Enter your username:" 0 0)
     [ -z "$username" ] && username="user"
-
     hostname=$(drawDialog --title "System Hostname" --inputbox "Enter your system hostname:" 0 0)
     [ -z "$hostname" ] && hostname="voidlinux"
-
     timezoneConfig
 }
 
 # --- 3. DYNAMIC TIMEZONE ---
 timezoneConfig() {
     local areas=(Africa America Antarctica Arctic Asia Atlantic Australia Europe Indian Pacific)
-    if area=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your region:" 0 0 0 $(printf '%s||' "${areas[@]}")) ; then
+    if area=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your region:" 0 0 0 $(printf '%s|' "${areas[@]}")); then
         mapfile -t locations < <(find "/usr/share/zoneinfo/$area" -type f -printf '%P\n' | sort) 2>/dev/null
-        local location=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your location:" 0 0 0 $(printf '%s||' "${locations[@]//_/ }"))
+        local location=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your location:" 0 0 0 $(printf '%s|' "${locations[@]//_/ }"))
     fi
     location=$(echo "$location" | tr ' ' '_')
-
     if [ -n "$area" ] && [ -n "$location" ]; then
         timezone="$area/$location"
     else
         timezone="UTC"
     fi
-
     localeConfig
 }
 
@@ -65,11 +62,9 @@ localeConfig() {
     for i in $localeList; do
         tmp+=("$i" "$i")
     done
-
     local localeChoice=$(drawDialog --no-cancel --title "Locale Selection" --menu "Please choose your system locale." 0 0 0 "${tmp[@]}")
     locale="LANG=$localeChoice"
     libclocale="$localeChoice UTF-8"
-
     repositoryConfig
 }
 
@@ -80,13 +75,11 @@ repositoryConfig() {
         repository=$(grep -h '^repository=' /etc/xbps.d/*-repository-main.conf 2>/dev/null | head -n 1 | cut -d= -f2 | tr -d '[:space:]')
     else
         # Use Fastly CDN as default instead of repo-default
-        [ "$libc" == "glibc" ] && repository="https://repo-fastly.voidlinux.org/current"
-        [ "$libc" == "musl" ] && repository="https://repo-fastly.voidlinux.org/current/musl"
+        [ "$libc" = "glibc" ] && repository="https://repo-fastly.voidlinux.org/current"
+        [ "$libc" = "musl" ] && repository="https://repo-fastly.voidlinux.org/current/musl"
     fi
-
-    [ "$libc" == "glibc" ] && ARCH="x86_64"
-    [ "$libc" == "musl" ] && ARCH="x86_64-musl"
-
+    [ "$libc" = "glibc" ] && ARCH="x86_64"
+    [ "$libc" = "musl" ] && ARCH="x86_64-musl"
     encryptionConfig
 }
 
@@ -105,7 +98,6 @@ suConfig() {
     su=$(drawDialog --no-cancel --title "Privilege Escalation" --menu "Choose your privilege escalation tool:" 0 0 0 \
         "sudo" "- Standard, widely used privilege escalation" \
         "doas" "- Lightweight, secure alternative (OpenBSD style)")
-    
     kernelConfig
 }
 
@@ -114,7 +106,6 @@ kernelConfig() {
     kernel=$(drawDialog --no-cancel --title "Kernel Selection" --menu "Select your Linux kernel:" 0 0 0 \
         "linux" "- Standard latest stable kernel" \
         "linux-lts" "- Long Term Support kernel (recommended for stability)")
-    
     initrdConfig
 }
 
@@ -123,7 +114,6 @@ initrdConfig() {
     initrd=$(drawDialog --no-cancel --title "Initramfs Choice" --menu "Select your initramfs generator:" 0 0 0 \
         "dracut" "- Default, robust Void initramfs generator" \
         "tinyramfs" "- Small, fast POSIX Shell initramfs generator")
-
     gpuConfig
 }
 
@@ -151,7 +141,6 @@ gpuConfig() {
             graphics="none"
         fi
     fi
-    
     appsConfig
 }
 
@@ -170,10 +159,8 @@ appsConfig() {
         "zsh" "Zsh shell" off
         "firefox" "Firefox web browser" off
     )
-
     local selected=$(drawDialog --no-cancel --title "Additional Applications" --checklist "Select optional packages to install (Space to select, Enter to confirm):" 0 0 0 "${apps_list[@]}")
     extra_packages=$(echo "$selected" | tr -d '"')
-
     confirm
 }
 
@@ -207,13 +194,12 @@ confirm() {
 # --- INSTALLATION EXECUTION ---
 _install() {
     exec 3>&1 4>&2
-    exec > >(tee -a "$logFile") 2>&1
-
+    exec >> >(tee -a "$logFile") 2>&1
     {
         echo "void-install-script log"
         echo "date: $(date)"
         echo "commit: $(git -C "$(pwd)" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-        echo "environment: ${libc} ${ARCH} $(uname -r)"
+        echo "environment: ${libc}${ARCH} $(uname -r)"
         echo ""
         echo "user settings:"
         echo -e "$settings"
@@ -223,8 +209,11 @@ _install() {
     echo "Starting installation..."
     . "$(pwd)"/setup/disk
 
+    # FIX: Ensure /mnt/tmp exists before writing to it
+    mkdir -p /mnt/tmp
+
     # Safe heredoc prevents word-splitting issues with variables
-    cat << EOF > /mnt/tmp/installerOptions
+    cat <<EOF > /mnt/tmp/installerOptions
 bootloader='$bootloader'
 su='$su'
 timezone='$timezone'
@@ -243,17 +232,18 @@ EOF
 
     commandFailure="System chroot setup has failed."
     cp /etc/resolv.conf /mnt/etc/resolv.conf || die
-
     cp -f "$(pwd)"/misc/libviss /mnt/tmp/libviss || die
     cp -f "$(pwd)"/setup/chroot /mnt/tmp/chroot || die
-    system "/bin/bash /tmp/chroot"
 
+    system "/bin/bash /tmp/chroot"
     clear
+
     system "xbps-remove -RyO"
     cp -f "$logFile" /mnt/var/log/void-install-script.log
-    exec 1>&3 2>&4
 
+    exec 1>&3 2>&4
     clear
+
     if drawDialog --title "Installation Complete" --yes-label "Reboot" --no-label "Exit" --yesno "Installation finished successfully.\n\nTotal installer runtime: ${SECONDS} seconds." 0 0 ; then
         reboot now
     else
