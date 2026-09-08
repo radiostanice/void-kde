@@ -42,9 +42,9 @@ userConfig() {
 # --- 3. DYNAMIC TIMEZONE ---
 timezoneConfig() {
     local areas=(Africa America Antarctica Arctic Asia Atlantic Australia Europe Indian Pacific)
-    if area=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your region:" 0 0 0 $(printf '%s|' "${areas[@]}")); then
+    if area=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your region:" 0 0 0 $(printf '%s||' "${areas[@]}")); then
         mapfile -t locations < <(find "/usr/share/zoneinfo/$area" -type f -printf '%P\n' | sort) 2>/dev/null
-        local location=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your location:" 0 0 0 $(printf '%s|' "${locations[@]//_/ }"))
+        local location=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your location:" 0 0 0 $(printf '%s||' "${locations[@]//_/ }"))
     fi
     location=$(echo "$location" | tr ' ' '_')
     if [ -n "$area" ] && [ -n "$location" ]; then
@@ -194,7 +194,7 @@ confirm() {
 # --- INSTALLATION EXECUTION ---
 _install() {
     exec 3>&1 4>&2
-    exec >> >(tee -a "$logFile") 2>&1
+    exec > >(tee -a "$logFile") 2>&1
     {
         echo "void-install-script log"
         echo "date: $(date)"
