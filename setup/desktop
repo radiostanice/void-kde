@@ -1,12 +1,17 @@
 #!/bin/bash
 
-# FIX: Consume the graphics variable passed from the installer
+# --- GRAPHICS DRIVERS ---
 graphicsArray=($graphics)
 
 [ -n "$graphics" ] && commandFailure="Graphics driver installation has failed."
 for i in "${graphicsArray[@]}"; do
     case $i in
-        amd) install mesa-dri vulkan-loader mesa-vulkan-radeon mesa-vaapi ;;
+        amd)
+            install mesa-dri vulkan-loader mesa-vulkan-radeon mesa-vaapi
+            ;;
+        intel)
+            install mesa-dri vulkan-loader mesa-vulkan-intel intel-video-accel
+            ;;
         nvidia)
             install void-repo-nonfree
             if [ "$kernel" == "linux-lts" ]; then
@@ -16,23 +21,35 @@ for i in "${graphicsArray[@]}"; do
             fi
             setKernelParam "nvidia_drm.modeset=1"
             ;;
-        intel) install mesa-dri vulkan-loader mesa-vulkan-intel intel-video-accel ;;
-        nouveau) install mesa-dri mesa-nouveau-dri ;;
+        nvidia-nouveau)
+            install mesa-dri mesa-nouveau-dri
+            ;;
+        none|auto)
+            # Generic fallback, usually sufficient for VMs (virtio, qxl, vmware) or unknown hardware
+            install mesa-dri
+            ;;
+        *)
+            echo "Unknown graphics option: $i, installing generic mesa-dri..."
+            install mesa-dri
+            ;;
     esac
 done
 
+# --- NETWORK ---
 [ -n "$network" ] && [ "$network" != "none" ] && commandFailure="DHCP client setup has failed."
 case "$network" in
     NetworkManager) install NetworkManager; enableService NetworkManager ;;
     dhcpcd) enableService dhcpcd ;;
 esac
 
+# --- GUI INSTALLATION ---
 commandFailure="GUI installation has failed"
-# FIX: Use 'kde-plasma' instead of the transitional 'kde5' package
+# Use 'kde-plasma' instead of the transitional 'kde5' package
 install kde-plasma xdg-user-dirs xdg-utils chromium elogind polkit-elogind
 enableService elogind
 enableService polkitd
 
+# --- AUDIO SERVER ---
 commandFailure="Audio server installation has failed."
 install pipewire wireplumber alsa-pipewire
 
