@@ -36,18 +36,33 @@ for i in "${graphicsArray[@]}"; do
 done
 
 # --- NETWORK ---
-[ -n "$network" ] && [ "$network" != "none" ] && commandFailure="DHCP client setup has failed."
+[ -n "$network" ] && [ "$network" != "none" ] && commandFailure="Network setup has failed."
 case "$network" in
     NetworkManager) install NetworkManager; enableService NetworkManager ;;
     dhcpcd) enableService dhcpcd ;;
 esac
 
-# --- GUI INSTALLATION ---
+# --- GUI INSTALLATION (STRICTLY MINIMAL KDE WAYLAND) ---
 commandFailure="GUI installation has failed"
-# Use 'kde-plasma' instead of the transitional 'kde5' package
-install kde-plasma xdg-user-dirs xdg-utils chromium elogind polkit-elogind
+
+# Core Plasma Shell (pulls in plasma-workspace, which provides startplasma-wayland)
+# Explicitly listing plasma-workspace documents our dependency for the .bash_profile autologin
+install plasma-desktop plasma-workspace
+
+# Window Manager and X11 compatibility layer for Wayland
+install kwin xorg-server-xwayland
+
+# Core session, privilege, and IPC management (MUST be enabled for Plasma to function)
+install elogind polkit-elogind dbus
 enableService elogind
 enableService polkitd
+enableService dbus
+
+# Plasma-specific integrations for audio and network system tray widgets
+install plasma-pa plasma-nm
+
+# Basic XDG utilities
+install xdg-user-dirs xdg-utils
 
 # --- AUDIO SERVER ---
 commandFailure="Audio server installation has failed."
