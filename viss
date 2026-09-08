@@ -80,8 +80,8 @@ repositoryConfig() {
         repository=$(grep -h '^repository=' /etc/xbps.d/*-repository-main.conf 2>/dev/null | head -n 1 | cut -d= -f2 | tr -d '[:space:]')
     else
         # Use Fastly CDN as default instead of repo-default
-        [ "$libc" == "glibc" ] && repository="https://fastly.voidlinux.org/current"
-        [ "$libc" == "musl" ] && repository="https://fastly.voidlinux.org/current/musl"
+        [ "$libc" == "glibc" ] && repository="https://repo-fastly.voidlinux.org/current"
+        [ "$libc" == "musl" ] && repository="https://repo-fastly.voidlinux.org/current/musl"
     fi
 
     [ "$libc" == "glibc" ] && ARCH="x86_64"
