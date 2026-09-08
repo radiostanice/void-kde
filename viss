@@ -75,12 +75,13 @@ localeConfig() {
 
 # --- 5. REPOSITORY MIRROR ---
 repositoryConfig() {
-    if drawDialog --title "Repository Mirror" --yesno "Would you like to set a custom repo mirror?\n\nIf 'No', the default Void repo will be used." 0 0 ; then
+    if drawDialog --title "Repository Mirror" --yesno "Would you like to set a custom repo mirror?\n\nIf 'No', the Fastly CDN repo will be used." 0 0 ; then
         xmirror
         repository=$(grep -h '^repository=' /etc/xbps.d/*-repository-main.conf 2>/dev/null | head -n 1 | cut -d= -f2 | tr -d '[:space:]')
     else
-        [ "$libc" == "glibc" ] && repository="https://repo-default.voidlinux.org/current"
-        [ "$libc" == "musl" ] && repository="https://repo-default.voidlinux.org/current/musl"
+        # Use Fastly CDN as default instead of repo-default
+        [ "$libc" == "glibc" ] && repository="https://fastly.voidlinux.org/current"
+        [ "$libc" == "musl" ] && repository="https://fastly.voidlinux.org/current/musl"
     fi
 
     [ "$libc" == "glibc" ] && ARCH="x86_64"
@@ -223,7 +224,6 @@ _install() {
     . "$(pwd)"/setup/disk
 
     # Safe heredoc prevents word-splitting issues with variables
-    mkdir -p /mnt/tmp
     cat << EOF > /mnt/tmp/installerOptions
 bootloader='$bootloader'
 su='$su'
@@ -244,7 +244,6 @@ EOF
     commandFailure="System chroot setup has failed."
     cp /etc/resolv.conf /mnt/etc/resolv.conf || die
 
-    cp -f "$(pwd)"/misc/60-ukify /mnt/tmp/60-ukify || die
     cp -f "$(pwd)"/misc/libviss /mnt/tmp/libviss || die
     cp -f "$(pwd)"/setup/chroot /mnt/tmp/chroot || die
     system "/bin/bash /tmp/chroot"
