@@ -105,7 +105,7 @@ suConfig() {
         "sudo" "- Standard, widely used privilege escalation" \
         "doas" "- Lightweight, secure alternative (OpenBSD style)")
     
-    kernelConfig  # <-- CHANGED FROM: initrdConfig
+    kernelConfig
 }
 
 # --- 8. KERNEL SELECTION ---
@@ -123,18 +123,34 @@ initrdConfig() {
         "dracut" "- Default, robust Void initramfs generator" \
         "tinyramfs" "- Small, fast POSIX Shell initramfs generator")
 
-    gpuDetectConfig
+    gpuConfig
 }
 
-# --- 10. GPU AUTO-DETECTION ---
-gpuDetectConfig() {
-    if lspci | grep -i "vga\|3d\|display" | grep -qi "nvidia"; then
-        graphics="nvidia"
-    elif lspci | grep -i "vga\|3d\|display" | grep -qi "amd\|ati\|advanced micro devices"; then
-        graphics="amd"
-    else
-        graphics="intel"
+# --- 10. GPU SELECTION ---
+gpuConfig() {
+    graphics=$(drawDialog --no-cancel --title "GPU Driver Selection" --menu "Select your GPU driver:\n(Note: Auto-detect can be inaccurate in VMs)" 0 0 0 \
+        "auto" "- Auto-detect (lspci)" \
+        "amd" "- AMD / Radeon" \
+        "intel" "- Intel" \
+        "nvidia" "- NVIDIA (Proprietary)" \
+        "nvidia-nouveau" "- NVIDIA (Open-source Nouveau)" \
+        "none" "- Generic / VM Display (virtio, qxl, vmware)")
+    
+    if [ "$graphics" = "auto" ]; then
+        # More precise auto-detection: only look at the VGA/3D controller line
+        local gpu_info
+        gpu_info=$(lspci -nn | grep -i "vga\|3d\|display")
+        if echo "$gpu_info" | grep -qi "nvidia"; then
+            graphics="nvidia"
+        elif echo "$gpu_info" | grep -qi "radeon\|amd\|ati"; then
+            graphics="amd"
+        elif echo "$gpu_info" | grep -qi "intel"; then
+            graphics="intel"
+        else
+            graphics="none"
+        fi
     fi
+    
     appsConfig
 }
 
