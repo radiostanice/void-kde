@@ -1,39 +1,72 @@
 #!/bin/bash
-# void-install-script general library for essential, repeated actions
+# void-install-script general library
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\e[1;33m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# --- Robust Cleanup Function ---
+cleanup_mounts() {
+    # Unmount chroot virtual filesystems
+    for fs in proc sys dev/pts dev/shm dev run tmp; do
+        if mountpoint -q "/mnt/$fs" 2>/dev/null; then
+            umount -f "/mnt/$fs" 2>/dev/null
+        fi
+    done
+    swapoff -a 2>/dev/null
+    
+    # Unmount all mounted partitions inside /mnt in reverse order
+    local mounts=$(mount | awk '{print $3}' | grep '^/mnt/' | sort -r)
+    for m in $mounts; do
+        umount -f "$m" 2>/dev/null
+    done
+    
+    # Unmount /mnt itself
+    if mountpoint -q /mnt 2>/dev/null; then
+        umount -f /mnt 2>/dev/null
+    fi
+}
+
+# --- Improved Error Handler ---
 die() {
-    echo -e "${RED}$commandFailure${NC}\nInstallation will not proceed."
+    local msg="${1:-$commandFailure}"
+    
+    tput reset 2>/dev/null || clear
+    
+    # Restore kernel logging if modified
+    if [ -w /proc/sys/kernel/printk ]; then
+        echo 4 > /proc/sys/kernel/printk
+    fi
+    
+    echo -e "\n${RED}INSTALLATION ABORTED${NC}"
+    echo -e "${RED}Reason: $msg${NC}\n"
+    echo -e "Attempting to cleanly unmount partitions..."
+    
+    cleanup_mounts
+    echo -e "\nYou may now safely exit or reboot."
     exit 1
 }
 
 drawDialog() {
-    # Simplified backtitle for your custom fork
     dialog --stdout --cancel-label "Skip" --no-mouse --backtitle "Void Linux Custom Installer" "$@"
 }
 
 install() {
-    xbps-install -Sy -R "$repository" -r /mnt "$@" || die
+    xbps-install -Sy -R "$repository" -r /mnt "$@" || die "Failed to install package(s): $*"
 }
 
 system() {
-    chroot /mnt /bin/bash -c "$@" || die
+    chroot /mnt /bin/bash -c "$@" || die "Chroot command failed: $*"
 }
 
 setKernelParam() {
-    # Modern UKI approach: simply append parameters to the cmdline file
-    # The 60-ukify hook will automatically read this when building the EFI stub.
-    echo "$1" >> /mnt/etc/kernel/cmdline || die
+    echo "$1" >> /mnt/etc/kernel/cmdline || die "Failed to set kernel parameter."
     kernelparam_update="true"
     return 0
 }
 
 enableService() {
-    # Enables one or more runit services in the chroot
     for service in "$@"; do
         system "ln -sf /etc/sv/$service /var/service"
     done
