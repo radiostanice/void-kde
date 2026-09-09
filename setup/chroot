@@ -123,7 +123,7 @@ export GOOGLE_DEFAULT_CLIENT_ID="no"
 export GOOGLE_DEFAULT_CLIENT_SECRET="no"
 export LANG=${sys_locale}
 export LC_ALL=${sys_locale}
-if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
+if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
     export XDG_RUNTIME_DIR="/run/user/$(id -u)"
     if [ ! -d "$XDG_RUNTIME_DIR" ]; then
         mkdir -p "$XDG_RUNTIME_DIR"
