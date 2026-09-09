@@ -110,4 +110,68 @@ if [ -n "$extra_packages" ]; then
     install $extra_packages
 fi
 
+# --- TINYRAMFS & LUKS CONFIGURATION ---
+if [ "$encryption" == "Yes" ] && [ "$initrd" == "tinyramfs" ]; then
+    commandFailure="Configuring tinyramfs has failed."
+    mkdir -p /mnt/etc/tinyramfs || die
+    CONFIG_FILE="/mnt/etc/tinyramfs/config"
+    touch "$CONFIG_FILE"
+
+    # Detect if disk is an SSD (to enable luks_discard)
+    is_ssd=0
+    base_disk=$(basename "$diskInput")
+    if [ -f "/sys/block/$base_disk/queue/rotational" ]; then
+        if [ "$(cat /sys/block/$base_disk/queue/rotational)" -eq 0 ]; then
+            is_ssd=1
+        fi
+    fi
+
+    # Append the 'luks' hook if it's not already there (corrected hook name and delimiter)
+    if grep -q "^hooks=" "$CONFIG_FILE"; then
+        if ! grep -E "^hooks=.*\bluks\b" "$CONFIG_FILE" >/dev/null; then
+            sed -i '/^hooks=/ s/\(.*\)"/\1,luks"/' "$CONFIG_FILE"
+        fi
+    else
+        echo 'hooks="eudev,luks"' >> "$CONFIG_FILE"
+    fi
+
+    # Enable LUKS discard for SSDs
+    if [ "$is_ssd" -eq 1 ]; then
+        echo 'luks_discard=yes' >> "$CONFIG_FILE"
+    fi
+    
+    # tinyramfs needs to know the LUKS root UUID and name to unlock it at boot
+    luks_uuid=$(blkid -o value -s UUID "$root")
+    echo "luks_root=UUID=$luks_uuid" >> "$CONFIG_FILE" || die
+    echo "luks_name=void_root" >> "$CONFIG_FILE" || die
+fi
+
+# --- SSD TRIM CONFIGURATION ---
+is_ssd=0
+base_disk=$(basename "$diskInput")
+if [ -f "/sys/block/$base_disk/queue/rotational" ]; then
+    if [ "$(cat /sys/block/$base_disk/queue/rotational)" -eq 0 ]; then
+        is_ssd=1
+    fi
+fi
+
+if [ "$is_ssd" -eq 1 ]; then
+    commandFailure="Configuring SSD TRIM has failed."
+    
+    # Install cronie for weekly fstrim (Void recommended over fstab discard)
+    install cronie || die
+
+    # Create the weekly cron job
+    mkdir -p /mnt/etc/cron.weekly || die
+    cat << 'CRON_EOF' > /mnt/etc/cron.weekly/fstrim
+#!/bin/sh
+fstrim -av
+CRON_EOF
+    chmod +x /mnt/etc/cron.weekly/fstrim || die
+    
+    # Enable the cronie runit service
+    mkdir -p /mnt/etc/runit/runsvdir/default || die
+    ln -sf /etc/sv/cronie /mnt/etc/runit/runsvdir/default/cronie
+fi
+
 return 0
