@@ -7,12 +7,14 @@ exitFunction () {
     xbps-reconfigure -fa || { commandFailure="xbps-reconfigure failed."; die; }
     
     # SAFETY ADDITION: Force the new "Void Linux" entry to the top of the UEFI boot order.
-    # This prevents stubborn motherboards from ignoring the new UKI entry.
     if [ "$bootloader" = "uki" ]; then
-        commandFailure="Setting default boot entry has failed."
-        # Replaced the fragile 'while read' loop with a robust awk call
-        bootEntry=$(efibootmgr --unicode | grep "Void Linux" | awk '{print $1}' | sed 's/Boot//g' | tr -d '*') || die
-        efibootmgr --bootorder "$bootEntry" || die
+        bootEntry=$(efibootmgr --unicode | grep -i "Void Linux" | awk '{print $1}' | sed 's/Boot//g' | tr -d '*')
+        # Guard against empty bootEntry so it doesn't crash a successful install
+        if [ -n "$bootEntry" ]; then
+            efibootmgr --bootorder "$bootEntry" || echo "Warning: Failed to set default UEFI boot order."
+        else
+            echo "Warning: Could not find Void Linux UEFI entry to set as default."
+        fi
     fi
     exit 0
 }
@@ -49,8 +51,6 @@ if [ "$secureboot" = "Yes" ]; then
     fi
 
     # Create the kernel hook for automatic signing
-    # FIX 3: named 70- so it runs AFTER 60-ukify has rebuilt the UKI
-    # (hooks run in lexical order; 60-sbctl-sign sorted before 60-ukify).
     mkdir -p /etc/kernel.d/post-install
     cat <<'HOOK' > /etc/kernel.d/post-install/70-sbctl-sign
 #!/bin/sh
@@ -74,15 +74,9 @@ mkdir -p /boot/efi/EFI/Linux || die
 cp /tmp/60-ukify /etc/kernel.d/post-install/60-ukify || die
 chmod 755 /etc/kernel.d/post-install/60-ukify || die
 
-# Dynamically find the installed kernel package (e.g., linux, linux-lts)
-kernel_pkg=$(xbps-query -l | awk '$1 == "ii" && $2 ~ /^linux/ {print $2}' | sed 's/-[0-9].*//' | head -n 1)
-if [ -z "$kernel_pkg" ]; then
-    commandFailure="Could not detect installed kernel package."
-    die
-fi
-
 # Force kernel reconfiguration to trigger UKI generation
-xbps-reconfigure -f "$kernel_pkg" || die
+# Uses the $kernel variable passed from the orchestrator instead of fragile xbps-query
+xbps-reconfigure -f "$kernel" || die
 
 # Verify UKI was actually created before proceeding
 if [ ! -f "/boot/efi/EFI/Linux/void-linux.efi" ]; then
@@ -96,7 +90,7 @@ efi_stub="/boot/efi/EFI/Linux/void-linux.efi"
 if [ -f "$efi_stub" ]; then
     commandFailure="efibootmgr registration failed."
     # Standard EFI paths require backslashes
-    efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 --loader "\\EFI\\Linux\\void-linux.efi" || die
+    efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 --loader '\EFI\Linux\void-linux.efi' || die
 else
     commandFailure="UKI stub not found at $efi_stub"
     die
@@ -152,6 +146,9 @@ exec agetty --autologin $username --noclear tty1 linux
 RUNEOF
     chmod +x /etc/sv/agetty-tty1/run
     ln -sf /etc/sv/agetty-tty1 /var/service/agetty-tty1
+
+    # Clean up temporary orchestrator files from the installed system's /tmp
+    rm -f /tmp/libviss /tmp/chroot /tmp/installerOptions /tmp/60-ukify
     
     clear; rootPassword
 fi
