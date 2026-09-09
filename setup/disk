@@ -4,41 +4,59 @@ echo "Running setup/disk..."
 # --- CLEANUP PREVIOUS INSTALLATION ---
 echo "Cleaning previous installation..."
 
-# 1. Unmount everything first (critical before wiping)
-for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$'); do
+# 1. Unmount everything first (critical before wiping), deepest mounts first
+for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$' | sort -r); do
     echo "Unmounting $mount_point..."
     umount -f -l "$mount_point" 2>/dev/null || true
 done
-
-# 2. Close LUKS containers
-for mapper in /dev/mapper/*; do
-    [ -e "$mapper" ] || continue
-    if lsblk -ln -o PKNAME "$mapper" 2>/dev/null | grep -q "$(basename "$diskInput")"; then
-        echo "Closing LUKS $(basename "$mapper")..."
-        cryptsetup close "$(basename "$mapper")" 2>/dev/null || true
-    fi
+# Belt-and-braces: anything an aborted run left under /mnt
+for mount_point in $(awk '{print $2}' /proc/mounts | grep '^/mnt' | sort -r); do
+    umount -f -l "$mount_point" 2>/dev/null || true
 done
 
-# 3. Wipe filesystem signatures from the disk and all its partitions
+# 2. Close LUKS containers / remove stale dm mappings backed by this disk.
+#    Ask cryptsetup itself which device each mapping wraps instead of guessing
+#    with lsblk PKNAME greps.
+for mapper in /dev/mapper/*; do
+    [ -b "$mapper" ] || continue
+    name=$(basename "$mapper")
+    backing=$(cryptsetup status "$name" 2>/dev/null | sed -n 's/^ *device: *//p')
+    case "$backing" in
+        "$diskInput"*)
+            echo "Closing LUKS mapping $name..."
+            cryptsetup close "$name" 2>/dev/null || dmsetup remove --force "$name" 2>/dev/null || true
+            ;;
+    esac
+done
+udevadm settle
+
+# 3. Now that nothing holds the disk, force the kernel to drop the old table
+for i in {1..5}; do
+    blockdev --rereadpt "$diskInput" 2>/dev/null && break
+    echo "Waiting for $diskInput to be released... attempt $i"
+    sleep 1
+done
+partx -u "$diskInput" 2>/dev/null || true
+udevadm settle
+
+# 4. Wipe filesystem signatures from the disk and all its partitions
 wipefs --all --force "$diskInput" 2>/dev/null || true
 for part in "${diskInput}"*; do
     [ -b "$part" ] && wipefs --all --force "$part" 2>/dev/null || true
 done
 
-# 4. Zap GPT partition table (clears both primary and backup headers)
+# 5. Zap GPT partition table (clears both primary and backup headers)
 if command -v sgdisk >/dev/null 2>&1; then
     sgdisk --zap-all "$diskInput" 2>/dev/null || true
 else
-    # Fallback: zero out the first 10MB to destroy primary GPT
     dd if=/dev/zero of="$diskInput" bs=1M count=10 status=none 2>/dev/null || true
 fi
 
-# 5. Delete partition table via sfdisk as an extra measure
+# 6. Delete partition table via sfdisk as an extra measure
 sfdisk --delete "$diskInput" 2>/dev/null || true
 
-# 6. Force kernel to drop old partition cache and recognize changes
 blockdev --rereadpt "$diskInput" 2>/dev/null || true
-partprobe "$diskInput" 2>/dev/null || true
+partx -u "$diskInput" 2>/dev/null || true
 udevadm settle
 
 # --- WIPE AND PARTITION ---
@@ -63,7 +81,7 @@ commandFailure="Writing partition table has failed."
 ) | fdisk -w always "$diskInput" || { commandFailure="Writing partition table failed." ; die ; }
 
 # Force kernel to recognize new partitions immediately
-partprobe "$diskInput" 2>/dev/null || true
+partx -u "$diskInput" 2>/dev/null || true
 udevadm settle
 
 # Set partition variables
@@ -87,6 +105,12 @@ done
 [ -b "$esp" ] || { commandFailure="ESP partition $esp does not exist." ; die ; }
 [ -b "$root" ] || { commandFailure="Root partition $root does not exist." ; die ; }
 
+# --- PRE-FLIGHT: never format a partition a stale mapping still holds ---
+if [ -n "$(ls -A "/sys/class/block/$(basename "$root")/holders" 2>/dev/null)" ]; then
+    commandFailure="$root is still held by a device-mapper mapping from a previous run. Close it (cryptsetup close <name>) or reboot the live session."
+    die
+fi
+
 # --- FORMAT ESP ---
 commandFailure="Formatting ESP has failed."
 mkfs.vfat -F 32 "$esp" || die
@@ -95,8 +119,8 @@ mkfs.vfat -F 32 "$esp" || die
 if [ "$encryption" == "Yes" ]; then
     commandFailure="Encrypting partition has failed."
     echo -e "${YELLOW}Enter your encryption passphrase:${NC}"
-    
-    # Detect if disk is an SSD by checking the rotational flag
+
+    # Detect if disk is an SSD (rotational == 0)
     is_ssd=0
     base_disk=$(basename "$diskInput")
     if [ -f "/sys/block/$base_disk/queue/rotational" ]; then
@@ -120,7 +144,7 @@ if [ "$encryption" == "Yes" ]; then
         cryptsetup luksOpen "$root" void_root
         [ "$?" -eq 0 ] && break
     done
-    
+
     format_target="/dev/mapper/void_root"
 else
     format_target="$root"
