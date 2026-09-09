@@ -34,7 +34,7 @@ fi
 
 # UKI & Initramfs Dependencies
 commandFailure="UKI/Initramfs package installation has failed."
-install efibootmgr ukify "$initrd"
+install efibootmgr ukify systemd-boot-efistub "$initrd"
 
 # FIX: Added spaces around !=
 if [ "$repository" != "https://repo-default.voidlinux.org/current" ] && [ "$repository" != "https://repo-default.voidlinux.org/current/musl" ]; then
