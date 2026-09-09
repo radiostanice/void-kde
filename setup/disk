@@ -96,8 +96,22 @@ if [ "$encryption" == "Yes" ]; then
     commandFailure="Encrypting partition has failed."
     echo -e "${YELLOW}Enter your encryption passphrase:${NC}"
     
+    # Detect if disk is an SSD by checking the rotational flag
+    is_ssd=0
+    base_disk=$(basename "$diskInput")
+    if [ -f "/sys/block/$base_disk/queue/rotational" ]; then
+        if [ "$(cat /sys/block/$base_disk/queue/rotational)" -eq 0 ]; then
+            is_ssd=1
+        fi
+    fi
+
+    crypt_options="--type luks2 --batch-mode --verify-passphrase --pbkdf argon2id"
+    if [ "$is_ssd" -eq 1 ]; then
+        crypt_options="$crypt_options --allow-discards"
+    fi
+
     while : ; do
-        cryptsetup luksFormat --type luks2 --batch-mode --verify-passphrase --pbkdf argon2id "$root"
+        cryptsetup luksFormat $crypt_options "$root"
         [ "$?" -eq 0 ] && break
     done
 
