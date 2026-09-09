@@ -5,6 +5,7 @@
 PKGNAME="$1"
 VERSION="$2"
 LOG=/var/log/ukify.log
+mkdir -p /var/log 2>/dev/null
 
 UKIFY=$(command -v ukify) || exit 0          # ukify not installed: nothing to do
 KERN="/boot/vmlinuz-${VERSION}"
