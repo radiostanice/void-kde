@@ -5,13 +5,15 @@
 # STRICT CONSTRAINTS: ext4, UKI (No GRUB), KDE Wayland, PipeWire, NetworkManager (with MAC randomization).
 # CHOICES: LUKS2 (argon2id) or None, dracut or tinyramfs.
 
-. "$(pwd)/misc/libviss" || { echo "$(pwd)/misc/libviss not found. Cannot continue."; exit 1 ; }
-. "$(pwd)/setup/installer" || { commandFailure="$(pwd)/setup/installer not found. Cannot continue."; die ; }
+. "$(pwd)/misc/libviss" || { echo "$(pwd)/misc/libviss not found. Cannot continue."; exit 1; }
+. "$(pwd)/setup/installer" || { commandFailure="$(pwd)/setup/installer not found. Cannot continue."; die; }
+
+# Catch termination signals and trigger cleanup
+trap 'die "Interrupted by user or terminated (SIGINT/SIGTERM)."' INT TERM QUIT
 
 # --- HARDCODED SETTINGS ---
 basesystem="base-system"
 filesystem="ext4"
-# kernel="linux" <-- REMOVED: Now set dynamically
 bootloader="uki"
 network="NetworkManager"
 audio="pipewire"
@@ -42,11 +44,19 @@ userConfig() {
 # --- 3. DYNAMIC TIMEZONE ---
 timezoneConfig() {
     local areas=(Africa America Antarctica Arctic Asia Atlantic Australia Europe Indian Pacific)
-    if area=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your region:" 0 0 0 $(printf '%s||' "${areas[@]}")); then
+    
+    # dialog --menu requires pairs of (tag, item). We use "" for the item description.
+    if area=$(drawDialog --no-cancel --title "Set Timezone" --menu "Select your region:" 0 0 0 $(printf '%s "" ' "${areas[@]}")); then
         mapfile -t locations < <(find "/usr/share/zoneinfo/$area" -type f -printf '%P\n' | sort) 2>/dev/null
-        local location=$(IFS='|'; drawDialog --no-cancel --title "Set Timezone" --menu "Select your location:" 0 0 0 $(printf '%s||' "${locations[@]//_/ }"))
+        
+        # Replace underscores with spaces for the dialog display
+        local display_locations=("${locations[@]//_/ }")
+        local location=$(drawDialog --no-cancel --title "Set Timezone" --menu "Select your location:" 0 0 0 $(printf '%s "" ' "${display_locations[@]}"))
+        
+        # Convert the selected location back to underscores for the timezone variable
+        location="${location// /_}"
     fi
-    location=$(echo "$location" | tr ' ' '_')
+    
     if [ -n "$area" ] && [ -n "$location" ]; then
         timezone="$area/$location"
     else
@@ -57,8 +67,7 @@ timezoneConfig() {
 
 # --- 4. DYNAMIC LOCALE ---
 localeConfig() {
-    local localeList=$(grep -E '\.UTF-8' /etc/default/libc-locales | awk '{print $1}' | sed -e 's/^#//')
-    local tmp=()
+    local localeList=$(grep -F '.UTF-8' /etc/default/libc-locales | awk '{print $1}' | sed -e 's/^#//')    local tmp=()
     for i in $localeList; do
         tmp+=("$i" "$i")
     done
@@ -68,7 +77,7 @@ localeConfig() {
     repositoryConfig
 }
 
-# --- 5. REPOSITORY MIRROR ---
+# --- 5. REPOSITORY MIRROR (Restored xmirror) ---
 repositoryConfig() {
     if drawDialog --title "Repository Mirror" --yesno "Would you like to set a custom repo mirror?\n\nIf 'No', the Fastly CDN repo will be used." 0 0 ; then
         xmirror
@@ -78,8 +87,10 @@ repositoryConfig() {
         [ "$libc" = "glibc" ] && repository="https://repo-fastly.voidlinux.org/current"
         [ "$libc" = "musl" ] && repository="https://repo-fastly.voidlinux.org/current/musl"
     fi
+    
     [ "$libc" = "glibc" ] && ARCH="x86_64"
     [ "$libc" = "musl" ] && ARCH="x86_64-musl"
+    
     encryptionConfig
 }
 
@@ -96,44 +107,43 @@ encryptionConfig() {
 # --- 7. PRIVILEGE ESCALATION CHOICE ---
 suConfig() {
     su=$(drawDialog --no-cancel --title "Privilege Escalation" --menu "Choose your privilege escalation tool:" 0 0 0 \
-        "sudo" "- Standard, widely used privilege escalation" \
-        "doas" "- Lightweight, secure alternative (OpenBSD style)")
+    "sudo" "- Standard, widely used privilege escalation" \
+    "doas" "- Lightweight, secure alternative (OpenBSD style)")
     kernelConfig
 }
 
 # --- 8. KERNEL SELECTION ---
 kernelConfig() {
     kernel=$(drawDialog --no-cancel --title "Kernel Selection" --menu "Select your Linux kernel:" 0 0 0 \
-        "linux" "- Standard latest stable kernel" \
-        "linux-lts" "- Long Term Support kernel (recommended for stability)")
+    "linux" "- Standard latest stable kernel" \
+    "linux-lts" "- Long Term Support kernel (recommended for stability)")
     initrdConfig
 }
 
 # --- 9. INITRAMFS CHOICE ---
 initrdConfig() {
     initrd=$(drawDialog --no-cancel --title "Initramfs Choice" --menu "Select your initramfs generator:" 0 0 0 \
-        "dracut" "- Default, robust Void initramfs generator" \
-        "tinyramfs" "- Small, fast POSIX Shell initramfs generator")
+    "dracut" "- Default, robust Void initramfs generator" \
+    "tinyramfs" "- Small, fast POSIX Shell initramfs generator")
     gpuConfig
 }
 
 # --- 10. GPU SELECTION ---
 gpuConfig() {
     graphics=$(drawDialog --no-cancel --title "GPU Driver Selection" --menu "Select your GPU driver:\n(Note: Auto-detect can be inaccurate in VMs)" 0 0 0 \
-        "auto" "- Auto-detect (lspci)" \
-        "amd" "- AMD / Radeon" \
-        "intel" "- Intel" \
-        "nvidia" "- NVIDIA (Proprietary)" \
-        "nvidia-nouveau" "- NVIDIA (Open-source Nouveau)" \
-        "none" "- Generic / VM Display (virtio, qxl, vmware)")
+    "auto" "- Auto-detect (lspci)" \
+    "amd" "- AMD / Radeon" \
+    "intel" "- Intel" \
+    "nvidia" "- NVIDIA (Proprietary)" \
+    "nvidia-nouveau" "- NVIDIA (Open-source Nouveau)" \
+    "none" "- Generic / VM Display (virtio, qxl, vmware)")
     
     if [ "$graphics" = "auto" ]; then
-        # More precise auto-detection: only look at the VGA/3D controller line
         local gpu_info
-        gpu_info=$(lspci -nn | grep -i "vga\|3d\|display")
+        gpu_info=$(lspci -nn | grep -Ei "vga|3d|display")
         if echo "$gpu_info" | grep -qi "nvidia"; then
             graphics="nvidia"
-        elif echo "$gpu_info" | grep -qi "radeon\|amd\|ati"; then
+        elif echo "$gpu_info" | grep -Eiq "radeon|amd|ati"; then
             graphics="amd"
         elif echo "$gpu_info" | grep -qi "intel"; then
             graphics="intel"
@@ -141,10 +151,20 @@ gpuConfig() {
             graphics="none"
         fi
     fi
+    securebootConfig
+}
+
+# --- 11. SECURE BOOT ---
+securebootConfig() {
+    if drawDialog --title "Secure Boot" --yesno "Do you want to generate Secure Boot keys and sign the kernel?\n\nThis installs 'sbctl' and adds a kernel hook to automatically sign kernels on updates." 0 0 ; then
+        secureboot="Yes"
+    else
+        secureboot="No"
+    fi
     appsConfig
 }
 
-# --- 11. ADDITIONAL APPLICATIONS CHECKLIST ---
+# --- 12. ADDITIONAL APPLICATIONS CHECKLIST ---
 appsConfig() {
     local apps_list=(
         "flatpak" "Flatpak package management" off
@@ -164,7 +184,7 @@ appsConfig() {
     confirm
 }
 
-# --- 12. CONFIRMATION ---
+# --- 13. CONFIRMATION ---
 confirm() {
     local settings="Target disk: $diskInput (WILL BE WIPED)\n"
     settings+="Filesystem: ext4\n"
@@ -182,8 +202,9 @@ confirm() {
     settings+="Locale: ${locale#LANG=}\n"
     settings+="Repo: $repository\n"
     settings+="GPU Driver: $graphics\n"
+    settings+="Secure Boot: $secureboot\n"
     [ -n "$extra_packages" ] && settings+="Extra Apps: $extra_packages\n"
-
+    
     if drawDialog --yes-label "Install" --no-label "Exit" --title "Installation Overview" --yesno "Selecting 'Install' will DESTROY ALL DATA on $diskInput and proceed with these options:\n\n$settings" 0 0 ; then
         _install
     else
@@ -199,19 +220,19 @@ _install() {
         echo "void-install-script log"
         echo "date: $(date)"
         echo "commit: $(git -C "$(pwd)" rev-parse --short HEAD 2>/dev/null || echo unknown)"
-        echo "environment: ${libc}${ARCH} $(uname -r)"
+        echo "environment: ${libc} ${ARCH} $(uname -r)"
         echo ""
         echo "user settings:"
         echo -e "$settings"
         echo ""
     } >> "$logFile"
-
+    
     echo "Starting installation..."
     . "$(pwd)"/setup/disk
-
+    
     # FIX: Ensure /mnt/tmp exists before writing to it
     mkdir -p /mnt/tmp
-
+    
     # Safe heredoc prevents word-splitting issues with variables
     cat <<EOF > /mnt/tmp/installerOptions
 bootloader='$bootloader'
@@ -225,25 +246,25 @@ root='$root'
 initrd='$initrd'
 graphics='$graphics'
 kernel='$kernel'
+secureboot='$secureboot'
 EOF
-
+    
     . "$(pwd)"/setup/base
     . "$(pwd)"/setup/desktop
-
+    
     commandFailure="System chroot setup has failed."
     cp /etc/resolv.conf /mnt/etc/resolv.conf || die
     cp -f "$(pwd)"/misc/libviss /mnt/tmp/libviss || die
     cp -f "$(pwd)"/setup/chroot /mnt/tmp/chroot || die
-
+    
     system "/bin/bash /tmp/chroot"
     clear
-
     system "xbps-remove -RyO"
+    
     cp -f "$logFile" /mnt/var/log/void-install-script.log
-
     exec 1>&3 2>&4
     clear
-
+    
     if drawDialog --title "Installation Complete" --yes-label "Reboot" --no-label "Exit" --yesno "Installation finished successfully.\n\nTotal installer runtime: ${SECONDS} seconds." 0 0 ; then
         reboot now
     else
