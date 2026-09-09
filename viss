@@ -256,6 +256,7 @@ EOF
     cp /etc/resolv.conf /mnt/etc/resolv.conf || die
     cp -f "$(pwd)"/misc/libviss /mnt/tmp/libviss || die
     cp -f "$(pwd)"/setup/chroot /mnt/tmp/chroot || die
+    cp -f "$(pwd)"/misc/60-ukify  /mnt/tmp/60-ukify  || die
     
     system "/bin/bash /tmp/chroot"
     clear
