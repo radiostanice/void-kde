@@ -32,6 +32,11 @@ if [ "$su" = "doas" ]; then
     install opendoas
 fi
 
+# --- CRITICAL FIX: Purge dracut to prevent hook hijacking ---
+# Even if tinyramfs is selected, dracut might be present from the live ISO 
+# or as a transient dependency. We must remove it to ensure clean UKI generation.
+xbps-remove -y dracut dracut-network dracut-crypt-ssh 2>/dev/null || true
+
 # UKI & Initramfs Dependencies
 commandFailure="UKI/Initramfs package installation has failed."
 install efibootmgr ukify systemd-boot-efistub "$initrd"
