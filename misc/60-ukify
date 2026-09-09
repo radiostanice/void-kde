@@ -1,25 +1,48 @@
 #!/bin/sh
-
-set -e
+# Void kernel.d post-install hook: build a UKI with ukify
+# Args: $1 = pkgname, $2 = kernel pkgver (e.g. 6.18.4_1)
 
 PKGNAME="$1"
 VERSION="$2"
+LOG=/var/log/ukify.log
 
-[ -x /usr/bin/ukify ] || exit 0
+UKIFY=$(command -v ukify) || exit 0          # ukify not installed: nothing to do
+KERN="/boot/vmlinuz-${VERSION}"
+INITRD="/boot/initramfs-${VERSION}.img"
+OUT="/boot/efi/EFI/Linux/void-linux.efi"
+STUB="/usr/lib/systemd/boot/efi/linuxx64.efi.stub"
 
-# Define ROOTDIR as root filesystem
-ROOTDIR=""
+[ -f "$KERN" ] || exit 0                     # kernel files gone (e.g. vkpurge): skip
 
-# Read kernel command line from file if it exists, otherwise use a safe default
-CMDLINE="loglevel=4"
-if [ -f "${ROOTDIR}/etc/kernel/cmdline" ]; then
-    CMDLINE=$(cat "${ROOTDIR}/etc/kernel/cmdline")
+{
+    echo "=== ukify hook: $(date) pkg=$PKGNAME ver=$VERSION ==="
+    echo "kernel: $KERN $([ -f "$KERN" ]   && echo OK || echo MISSING)"
+    echo "initrd: $INITRD $([ -f "$INITRD" ] && echo OK || echo MISSING)"
+    echo "stub:   $STUB $([ -f "$STUB" ]   && echo OK || echo MISSING)"
+} >> "$LOG"
+
+if [ ! -f "$INITRD" ]; then
+    echo "ERROR: initramfs missing - initramfs generator hook did not run?" >> "$LOG"
+    exit 1
+fi
+if [ ! -f "$STUB" ]; then
+    echo "ERROR: EFI stub missing - install systemd-boot-efistub" >> "$LOG"
+    exit 1
 fi
 
+CMDLINE="loglevel=4"
+[ -f /etc/kernel/cmdline ] && CMDLINE=$(cat /etc/kernel/cmdline)
+
+mkdir -p /boot/efi/EFI/Linux
+
 ukify build \
-	--linux="${ROOTDIR}/boot/vmlinuz-${VERSION}" \
-	--initrd="${ROOTDIR}/boot/initramfs-${VERSION}.img" \
-	--output="${ROOTDIR}/boot/efi/EFI/Linux/void-linux.efi" \
-	--uname="${VERSION}" \
-	--os-release=@/etc/os-release \
-	--cmdline="$CMDLINE"
+    --linux="$KERN" \
+    --initrd="$INITRD" \
+    --stub="$STUB" \
+    --output="$OUT" \
+    --uname="$VERSION" \
+    --os-release=@/etc/os-release \
+    --cmdline="$CMDLINE" >> "$LOG" 2>&1
+rc=$?
+echo "ukify exit code: $rc" >> "$LOG"
+exit $rc
