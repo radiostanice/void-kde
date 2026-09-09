@@ -37,17 +37,22 @@ chmod 755 / || die
 # --- SECURE BOOT SETUP ---
 if [ "$secureboot" = "Yes" ]; then
     echo "Setting up Secure Boot with sbctl..."
-    xbps-install -y sbctl kernel-hooks || die "Failed to install sbctl and kernel-hooks."
-    
-    # Generate keys if they don't exist
-    if [ ! -d /var/lib/sbctl ]; then
+    # FIX 1: 'kernel-hooks' is an xbps trigger shipped inside xbps-triggers,
+    # not an installable package. Only sbctl needs installing.
+    xbps-install -y sbctl || die "Failed to install sbctl."
+
+    # FIX 2: the sbctl package creates /var/lib/sbctl at install time (make_dirs),
+    # so check for the actual key material instead of the directory.
+    if [ ! -f /var/lib/sbctl/keys/db/db.pem ]; then
         sbctl create-keys || die "Failed to create Secure Boot keys."
         echo -e "${YELLOW}Secure Boot keys generated. You MUST enroll them in your BIOS/UEFI on first boot!${NC}"
     fi
-    
+
     # Create the kernel hook for automatic signing
+    # FIX 3: named 70- so it runs AFTER 60-ukify has rebuilt the UKI
+    # (hooks run in lexical order; 60-sbctl-sign sorted before 60-ukify).
     mkdir -p /etc/kernel.d/post-install
-    cat <<'HOOK' > /etc/kernel.d/post-install/60-sbctl-sign
+    cat <<'HOOK' > /etc/kernel.d/post-install/70-sbctl-sign
 #!/bin/sh
 # Hook to sign UKI binaries automatically
 command -v sbctl >/dev/null || exit 0
@@ -57,7 +62,7 @@ for bin in /boot/vmlinuz*.efi /boot/efi/EFI/Linux/*.efi /boot/EFI/Void/*.efi; do
     [ -f "$bin" ] && sbctl sign -s "$bin" 2>/dev/null
 done
 HOOK
-    chmod +x /etc/kernel.d/post-install/60-sbctl-sign
+    chmod +x /etc/kernel.d/post-install/70-sbctl-sign
 fi
 
 # --- UKI GENERATION & REGISTRATION ---
