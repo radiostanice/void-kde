@@ -75,8 +75,10 @@ cp /tmp/60-ukify /etc/kernel.d/post-install/60-ukify || die
 chmod 755 /etc/kernel.d/post-install/60-ukify || die
 
 # Force kernel reconfiguration to trigger UKI generation
-# Uses the $kernel variable passed from the orchestrator instead of fragile xbps-query
 xbps-reconfigure -f "$kernel" || die
+
+# Explicitly reconfigure the initramfs generator to ensure it runs
+xbps-reconfigure -f "$initrd" || die
 
 # Verify UKI was actually created before proceeding
 if [ ! -f "/boot/efi/EFI/Linux/void-linux.efi" ]; then
