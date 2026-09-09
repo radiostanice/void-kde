@@ -130,15 +130,6 @@ fi
 commandFailure="Formatting root as ext4 has failed."
 mkfs.ext4 -F "$format_target" || die
 
-if [ "$encryption" == "Yes" ] && [ "$initrd" == "tinyramfs" ]; then
-    # Create config directory if it doesn't exist yet (package installs might do this later)
-    mkdir -p /mnt/etc/tinyramfs
-    # Append hook if it's not already there
-    if ! grep -q "hooks=.*cryptsetup" /mnt/etc/tinyramfs/config 2>/dev/null; then
-        echo 'hooks="eudev cryptsetup"' >> /mnt/etc/tinyramfs/config
-    fi
-fi
-
 # --- MOUNT ---
 commandFailure="Mounting partitions has failed."
 mount "$format_target" /mnt || die
