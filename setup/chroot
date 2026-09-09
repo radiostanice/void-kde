@@ -80,7 +80,7 @@ xbps-reconfigure -f "$kernel" || die
 
 # Verify UKI was actually created before proceeding
 if [ ! -f "/boot/efi/EFI/Linux/void-linux.efi" ]; then
-    commandFailure="UKI stub not created at /boot/efi/EFI/Linux/void-linux.efi. Check /var/log/xbps.log for ukify errors."
+    commandFailure="UKI stub not created at /boot/efi/EFI/Linux/void-linux.efi. See /var/log/ukify.log (inside target) for ukify errors."
     die
 fi
 
