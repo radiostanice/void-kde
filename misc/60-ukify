@@ -1,54 +1,29 @@
 #!/bin/sh
 
-# Void kernel.d post-install hook: build a UKI with ukify
+set -e
+
 PKGNAME="$1"
 VERSION="$2"
+
+[ -x /usr/bin/ukify ] || exit 0
+
+# Log to /tmp for debugging
 LOG="/tmp/ukify.log"
-
-mkdir -p /tmp 2>/dev/null
-
-UKIFY=$(command -v ukify) || exit 0 # ukify not installed: nothing to do
-
-KERN="/boot/vmlinuz-${VERSION}"
-INITRD="/boot/initramfs-${VERSION}.img"
-OUT="/boot/efi/EFI/Linux/void-linux.efi"
-STUB="/usr/lib/systemd/boot/efi/linuxx64.efi.stub"
-
-[ -f "$KERN" ] || exit 0 # kernel files gone (e.g., vkpurge): skip
+mkdir -p /tmp
 
 {
-    echo "=== ukify hook: $(date) pkg=$PKGNAME ver=$VERSION ==="
-    echo "kernel: $KERN $([ -f "$KERN" ] && echo OK || echo MISSING)"
-    echo "initrd: $INITRD $([ -f "$INITRD" ] && echo OK || echo MISSING)"
-    echo "stub: $STUB $([ -f "$STUB" ] && echo OK || echo MISSING)"
+    echo "=== ukify hook running ==="
+    echo "PKGNAME: $PKGNAME"
+    echo "VERSION: $VERSION"
+    echo "Building UKI..."
 } | tee -a "$LOG"
 
-if [ ! -f "$INITRD" ]; then
-    echo "ERROR: initramfs missing - initramfs generator hook did not run?" | tee -a "$LOG"
-    exit 1
-fi
-
-if [ ! -f "$STUB" ]; then
-    echo "ERROR: EFI stub missing - install systemd-boot-efistub" | tee -a "$LOG"
-    exit 1
-fi
-
-CMDLINE="loglevel=4"
-[ -f /etc/kernel/cmdline ] && CMDLINE=$(cat /etc/kernel/cmdline)
-
-mkdir -p /boot/efi/EFI/Linux
-
-echo "Running: ukify build --linux=$KERN --initrd=$INITRD --stub=$STUB --output=$OUT --uname=$VERSION --os-release=@/etc/os-release --cmdline=\"$CMDLINE\"" | tee -a "$LOG"
-
+# Build the UKI - use absolute paths (no ROOTDIR)
 ukify build \
-    --linux="$KERN" \
-    --initrd="$INITRD" \
-    --stub="$STUB" \
-    --output="$OUT" \
-    --uname="$VERSION" \
-    --os-release=@/etc/os-release \
-    --cmdline="$CMDLINE" 2>&1 | tee -a "$LOG"
+    --linux="/boot/vmlinuz-${VERSION}" \
+    --initrd="/boot/initramfs-${VERSION}.img" \
+    --output="/boot/efi/EFI/boot/bootx64.efi" \
+    --uname="${VERSION}" \
+    --cmdline="loglevel=4" 2>&1 | tee -a "$LOG"
 
-rc=$?
-echo "ukify exit code: $rc" | tee -a "$LOG"
-exit $rc
+echo "ukify exit code: $?" | tee -a "$LOG"
