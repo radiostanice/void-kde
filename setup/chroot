@@ -107,11 +107,11 @@ efi_label="Void Linux"
 efi_stub="/boot/efi/EFI/Linux/void-linux.efi"
 [ -f "$efi_stub" ] || die "UKI stub not found at $efi_stub."
 
-# Plain (non-verbose) efibootmgr lines END at the label: "Boot0003* Void Linux"
-label_re="^Boot\([0-9A-Fa-f]\{4\}\)[* ] *${efi_label}[[:space:]]*$"
-
+# efibootmgr entry lines are "BootNNNN* <label><TAB><path>": the label is neither
+# last nor space-delimited, so never anchor after it. Substring-match the label
+# (grep -F) and extract only the BootNNNN prefix.
 # Purge stale entries from previous attempts (OVMF NVRAM persists)
-for n in $(efibootmgr | sed -n "s/${label_re}/\1/p"); do
+for n in $(efibootmgr -v | grep -F "$efi_label" | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)[* ].*/\1/p'); do
     echo "Purging stale UEFI boot entry Boot$n"
     efibootmgr -b "$n" -B >/dev/null 2>&1 || true
 done
@@ -121,7 +121,7 @@ efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 \
     --loader '\EFI\Linux\void-linux.efi' || die "efibootmgr --create failed."
 
 # Remember exactly which entry we just created (only one matches now)
-newEntry=$(efibootmgr | sed -n "s/${label_re}/\1/p" | head -n1)
+newEntry=$(efibootmgr -v | grep -F "$efi_label" | sed -n 's/^Boot\([0-9A-Fa-f]\{4\}\)[* ].*/\1/p' | head -n1)
 [ -n "$newEntry" ] || die "Could not find the newly created UEFI boot entry for '${efi_label}'."
 echo "Registered UEFI boot entry Boot${newEntry}"
 
