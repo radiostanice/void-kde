@@ -1,33 +1,35 @@
 #!/bin/sh
-# Void kernel.d post-install hook: build a UKI with ukify
-# Args: $1 = pkgname, $2 = kernel pkgver (e.g. 6.18.4_1)
 
+# Void kernel.d post-install hook: build a UKI with ukify
 PKGNAME="$1"
 VERSION="$2"
-LOG=/var/log/ukify.log
-mkdir -p /var/log 2>/dev/null
+LOG="/tmp/ukify.log"
 
-UKIFY=$(command -v ukify) || exit 0          # ukify not installed: nothing to do
+mkdir -p /tmp 2>/dev/null
+
+UKIFY=$(command -v ukify) || exit 0 # ukify not installed: nothing to do
+
 KERN="/boot/vmlinuz-${VERSION}"
 INITRD="/boot/initramfs-${VERSION}.img"
 OUT="/boot/efi/EFI/Linux/void-linux.efi"
 STUB="/usr/lib/systemd/boot/efi/linuxx64.efi.stub"
 
-[ -f "$KERN" ] || exit 0                     # kernel files gone (e.g. vkpurge): skip
+[ -f "$KERN" ] || exit 0 # kernel files gone (e.g., vkpurge): skip
 
 {
     echo "=== ukify hook: $(date) pkg=$PKGNAME ver=$VERSION ==="
-    echo "kernel: $KERN $([ -f "$KERN" ]   && echo OK || echo MISSING)"
+    echo "kernel: $KERN $([ -f "$KERN" ] && echo OK || echo MISSING)"
     echo "initrd: $INITRD $([ -f "$INITRD" ] && echo OK || echo MISSING)"
-    echo "stub:   $STUB $([ -f "$STUB" ]   && echo OK || echo MISSING)"
-} >> "$LOG"
+    echo "stub: $STUB $([ -f "$STUB" ] && echo OK || echo MISSING)"
+} | tee -a "$LOG"
 
 if [ ! -f "$INITRD" ]; then
-    echo "ERROR: initramfs missing - initramfs generator hook did not run?" >> "$LOG"
+    echo "ERROR: initramfs missing - initramfs generator hook did not run?" | tee -a "$LOG"
     exit 1
 fi
+
 if [ ! -f "$STUB" ]; then
-    echo "ERROR: EFI stub missing - install systemd-boot-efistub" >> "$LOG"
+    echo "ERROR: EFI stub missing - install systemd-boot-efistub" | tee -a "$LOG"
     exit 1
 fi
 
@@ -36,6 +38,8 @@ CMDLINE="loglevel=4"
 
 mkdir -p /boot/efi/EFI/Linux
 
+echo "Running: ukify build --linux=$KERN --initrd=$INITRD --stub=$STUB --output=$OUT --uname=$VERSION --os-release=@/etc/os-release --cmdline=\"$CMDLINE\"" | tee -a "$LOG"
+
 ukify build \
     --linux="$KERN" \
     --initrd="$INITRD" \
@@ -43,7 +47,8 @@ ukify build \
     --output="$OUT" \
     --uname="$VERSION" \
     --os-release=@/etc/os-release \
-    --cmdline="$CMDLINE" >> "$LOG" 2>&1
+    --cmdline="$CMDLINE" 2>&1 | tee -a "$LOG"
+
 rc=$?
-echo "ukify exit code: $rc" >> "$LOG"
+echo "ukify exit code: $rc" | tee -a "$LOG"
 exit $rc
