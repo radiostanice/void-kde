@@ -161,6 +161,9 @@ mount "$format_target" /mnt || die
 mkdir -p /mnt/boot/efi || die
 mount "$esp" /mnt/boot/efi || die
 
+mkdir -p /var/cache/xbps /mnt/var/cache/xbps || die
+mount --bind /var/cache/xbps /mnt/var/cache/xbps || die
+
 for dir in dev proc sys run; do
     mkdir -p /mnt/$dir
     mount --rbind /$dir /mnt/$dir
