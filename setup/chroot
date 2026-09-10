@@ -3,6 +3,8 @@
 . "/tmp/libviss" || { echo "/tmp/libviss not found."; exit 1; }
 . "/tmp/installerOptions" || { commandFailure="Sourcing installer options failed."; die; }
 
+set -x
+
 exitFunction () {
     xbps-reconfigure -fa || { commandFailure="xbps-reconfigure failed."; die; }
 
@@ -103,22 +105,26 @@ fi
 # --- UKI NVRAM REGISTRATION ---
 efi_label="Void Linux"
 efi_stub="/boot/efi/EFI/Linux/void-linux.efi"
-[ -f "$efi_stub" ] || { commandFailure="UKI stub not found at $efi_stub"; die; }
+[ -f "$efi_stub" ] || die "UKI stub not found at $efi_stub."
 
-commandFailure="efibootmgr registration failed."
-# NEW: NVRAM survives failed install attempts (OVMF vars persist): purge any
+# NVRAM survives failed install attempts (OVMF vars persist): purge any
 # leftover entries carrying our label before creating a new one.
-for n in $(efibootmgr | sed -n "s/^Boot\([0-9A-Fa-f]\{4\}\)[* ] *${efi_label} .*/\1/p"); do
-    efibootmgr -b "$n" -B >/dev/null || die
+for n in $(efibootmgr 2>/dev/null | sed -n "s/^Boot\([0-9A-Fa-f]\{4\}\)[* ] *${efi_label} .*/\1/p"); do
+    efibootmgr -b "$n" -B >/dev/null 2>&1 || true  # Don't abort if an old entry is already gone
 done
 
 # Single quotes prevent shell expansion of backslashes
-efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 \
-    --loader '\EFI\Linux\void-linux.efi' || die
+if ! efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 \
+    --loader '\EFI\Linux\void-linux.efi'; then
+    die "efibootmgr --create failed to register the UKI in UEFI NVRAM."
+fi
 
-# NEW: remember exactly which entry we just created (only one matches now)
+# Remember exactly which entry we just created
 newEntry=$(efibootmgr | sed -n "s/^Boot\([0-9A-Fa-f]\{4\}\)[* ] *${efi_label} .*/\1/p" | head -n1)
-[ -n "$newEntry" ] || die
+[ -n "$newEntry" ] || die "Could not find the newly created UEFI boot entry for '$efi_label'."
+
+# RESET commandFailure so any subsequent failures report accurately
+commandFailure="Post-installation configuration failed (after NVRAM registration)."
 
 ln -sf /usr/share/zoneinfo/"$timezone" /etc/localtime || die
 
