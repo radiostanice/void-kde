@@ -77,19 +77,30 @@ system "mkdir -p /etc/alsa/conf.d"
 system "ln -sf /usr/share/alsa/alsa.conf.d/50-pipewire.conf /etc/alsa/conf.d/50-pipewire.conf"
 system "ln -sf /usr/share/alsa/alsa.conf.d/99-pipewire-default.conf /etc/alsa/conf.d/99-pipewire-default.conf"
 
-# --- ADDITIONAL SERVICES (CUPS / BLUETOOTH) ---
-commandFailure="Additional service setup has failed."
+# --- XDG AUTOSTART & SERVICES (SYSTEM-WIDE) ---
+commandFailure="System-wide autostart and service setup has failed."
+
+# Ensure the system-wide autostart directory exists inside the target system
+system "mkdir -p /etc/xdg/autostart"
 
 # Enable CUPS if selected
 if echo "$extra_packages" | grep -qw "cups"; then
     enableService cupsd
 fi
 
-# Enable Bluetooth if blueman is selected
+# Enable Bluetooth if blueman is selected (installs bluez base package and enables service)
 if echo "$extra_packages" | grep -qw "blueman"; then
-    # Blueman requires the bluez base package and the bluetoothd service
     install bluez
     enableService bluetoothd
+fi
+
+# Link PipeWire & Wireplumber to system-wide autostart
+# Void places these .desktop files in /usr/share/applications/; they must be symlinked to /etc/xdg/autostart/ to autostart correctly
+system "ln -sf /usr/share/applications/pipewire.desktop /etc/xdg/autostart/pipewire.desktop"
+
+# Link OctoXBPS notifier to system-wide autostart if selected
+if echo "$extra_packages" | grep -qw "octoxbps"; then
+    system "ln -sf /usr/share/applications/octoxbps-notifier.desktop /etc/xdg/autostart/octoxbps-notifier.desktop"
 fi
 
 return 0
