@@ -69,23 +69,37 @@ fi
 commandFailure="UKI generation has failed."
 
 # Ensure the UKI output directory exists BEFORE reconfiguring kernel
-mkdir -p /boot/efi/EFI/Linux || die
+mkdir -p /boot/efi/EFI/boot || die  # Changed from EFI/Linux
 
 cp /tmp/60-ukify /etc/kernel.d/post-install/60-ukify || die
 chmod 755 /etc/kernel.d/post-install/60-ukify || die
 
-echo "=== STARTING KERNEL RECONFIGURE ($kernel) ==="
+echo "=== STARTING KERNEL RECONFIGURE ==="
+
+# Use the working script's kernel detection method
+KERNEL_VERSION=$(find /boot -name vmlinuz\* | tr -d "/boot/vmlinuz-" | cut -f1,2 -d".")
+echo "Detected kernel version: $KERNEL_VERSION"
 
 # Force kernel reconfiguration to trigger UKI generation
-if ! xbps-reconfigure -f "$kernel"; then
-    echo "!!! CRITICAL: Kernel reconfigure FAILED. Dumping logs below !!!"
-    echo "--- /tmp/ukify.log ---"
-    cat /tmp/ukify.log 2>/dev/null || echo "(No ukify.log found)"
-    echo "--- /var/log/xbps.log (last 50 lines) ---"
-    tail -n 50 /var/log/xbps.log 2>/dev/null || echo "(No xbps.log found)"
-    echo "!!! END OF LOGS !!!"
+if ! xbps-reconfigure -f "linux${KERNEL_VERSION}"; then
+    echo "!!! Kernel reconfigure FAILED !!!"
+    cat /tmp/ukify.log 2>/dev/null || echo "No ukify.log"
     die
 fi
+
+echo "=== KERNEL RECONFIGURE SUCCESSFUL ==="
+cat /tmp/ukify.log 2>/dev/null
+
+# Verify UKI was created at the correct path
+if [ ! -f "/boot/efi/EFI/boot/bootx64.efi" ]; then
+    commandFailure="UKI stub not created at /boot/efi/EFI/boot/bootx64.efi"
+    echo "!!! UKI NOT FOUND !!!"
+    cat /tmp/ukify.log 2>/dev/null
+    die
+fi
+
+# Create the EFI boot entry
+efibootmgr --create --label "Void Linux" --disk "$diskInput" --part 1 --loader "\EFI\boot\bootx64.efi" || die
 
 echo "=== KERNEL RECONFIGURE SUCCESSFUL ==="
 echo "--- /tmp/ukify.log (Success) ---"
