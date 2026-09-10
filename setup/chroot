@@ -73,21 +73,22 @@ mkdir -p /boot/efi/EFI/Linux || die
 cp /tmp/60-ukify /etc/kernel.d/post-install/60-ukify || die
 chmod 755 /etc/kernel.d/post-install/60-ukify || die
 
-# Dynamically find the installed kernel package (e.g., linux, linux-lts)
-kernel_pkg=$(xbps-query -l | awk '$1 == "ii" && $2 ~ /^linux/ {print $2}' | sed 's/-[0-9].*//' | head -n 1)
+# Dynamically find the installed kernel package (e.g., linux6.18, linux6.12)
+# ^linux[0-9] excludes the 'linux'/'linux-lts' metas, linux-base, linux-firmware-*
+kernel_pkg=$(xbps-query -l | awk '$1 == "ii" && $2 ~ /^linux[0-9]+\.[0-9]+-/ {print $2}' | sed 's/-[0-9].*//' | head -n 1)
+echo "Detected kernel package: $kernel_pkg"
 if [ -z "$kernel_pkg" ]; then
     commandFailure="Could not detect installed kernel package."
     die
 fi
 
 # Force kernel reconfiguration to trigger initramfs + UKI generation
-# This runs 20-initramfs (tinyramfs or dracut) -> 60-ukify -> 70-sbctl-sign
 xbps-reconfigure -f "$kernel_pkg" || die
 
-# Verify UKI was actually created before proceeding
+# Belt and braces: if the targeted reconfigure produced no UKI, reconfigure everything
 if [ ! -f "/boot/efi/EFI/Linux/void-linux.efi" ]; then
-    commandFailure="UKI stub not created at /boot/efi/EFI/Linux/void-linux.efi. Check /var/log/xbps.log for ukify errors."
-    die
+    echo "No UKI after targeted reconfigure, falling back to xbps-reconfigure -fa"
+    xbps-reconfigure -fa || die
 fi
 
 # Register the UKI with UEFI NVRAM
@@ -96,7 +97,8 @@ efi_stub="/boot/efi/EFI/Linux/void-linux.efi"
 if [ -f "$efi_stub" ]; then
     commandFailure="efibootmgr registration failed."
     # Standard EFI paths require backslashes
-    efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 --loader '\\EFI\\Linux\\void-linux.efi' || die
+    efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 \
+    --loader /EFI/Linux/void-linux.efi || die
 else
     commandFailure="UKI stub not found at $efi_stub"
     die
