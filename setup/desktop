@@ -62,8 +62,11 @@ enableService polkitd
 # Plasma-specific integrations for audio and network system tray widgets
 install plasma-pa plasma-nm
 
+#  Plasma utilities for info center
+install fwupd lm_sensors clinfo glxinfo Vulkan-Tools wayland-utils xdpyinfo mesa-demos
+
 # Basic XDG utilities
-install xdg-user-dirs xdg-utils
+install xdg-user-dirs xdg-utils 
 
 # --- AUDIO SERVER ---
 commandFailure="Audio server installation has failed."
