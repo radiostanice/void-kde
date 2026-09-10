@@ -262,10 +262,15 @@ EOF
     system "/bin/bash /tmp/chroot"
     clear
     system "xbps-remove -RyO"
-    
-    cp -f "$logFile" /mnt/var/log/void-install-script.log
+
+    # Clean up cached xbps packages from the target disk (no longer needed)
+    system "find /var/cache/xbps -name '*.xbps' -delete 2>/dev/null || true"
+
     exec 1>&3 2>&4
     clear
+
+    # Success path: drop the leftover /tmp log (die() leaves it in /tmp on failure)
+    rm -f "$logFile"
     
     if drawDialog --title "Installation Complete" --yes-label "Reboot" --no-label "Exit" --yesno "Installation finished successfully.\n\nTotal installer runtime: ${SECONDS} seconds." 0 0 ; then
         reboot now
