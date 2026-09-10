@@ -36,6 +36,12 @@ fi
 commandFailure="UKI/Initramfs package installation has failed."
 install efibootmgr ukify systemd-boot-efistub "$initrd"
 
+# Mandatory for LUKS boot: both dracut's crypt module and tinyramfs'
+# luks hook embed /usr/bin/cryptsetup from the TARGET system at build time.
+if [ "$encryption" = "Yes" ]; then
+    install cryptsetup || die
+fi
+
 # FIX: Switch alternatives to tinyramfs if selected.
 # linux-base pulls dracut, which owns the 20-initramfs slot by default.
 # We must explicitly switch to tinyramfs so it takes over.
