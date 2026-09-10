@@ -99,15 +99,15 @@ if [ ! -f "/boot/efi/EFI/boot/bootx64.efi" ]; then
 fi
 
 # Create the EFI boot entry
-efibootmgr --create --label "Void Linux" --disk "$diskInput" --part 1 --loader "\EFI\boot\bootx64.efi" || die
+efibootmgr --create --label "Void Linux" --disk "$diskInput" --part 1 --loader '\EFI\boot\bootx64.efi' || die
 
 echo "=== KERNEL RECONFIGURE SUCCESSFUL ==="
 echo "--- /tmp/ukify.log (Success) ---"
 cat /tmp/ukify.log 2>/dev/null
 
 # Verify UKI was actually created before proceeding
-if [ ! -f "/boot/efi/EFI/Linux/void-linux.efi" ]; then
-    commandFailure="UKI stub not created at /boot/efi/EFI/Linux/void-linux.efi."
+if [ ! -f "/boot/efi/EFI/boot/bootx64.efi" ]; then 
+    commandFailure="UKI stub not created at /boot/efi/EFI/boot/bootx64.efi"
     die
 fi
 
