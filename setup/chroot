@@ -5,14 +5,15 @@
 
 exitFunction () {
     xbps-reconfigure -fa || { commandFailure="xbps-reconfigure failed."; die; }
-    
+
     # SAFETY ADDITION: Force the new "Void Linux" entry to the top of the UEFI boot order.
     # This prevents stubborn motherboards from ignoring the new UKI entry.
-    if [ "$bootloader" = "uki" ]; then
+    # CHANGED: use $newEntry captured at creation time; never re-grep by label
+    # (stale duplicate labels produced a multi-line value -> "Invalid BootOrder").
+    if [ "$bootloader" = "uki" ] && [ -n "$newEntry" ]; then
         commandFailure="Setting default boot entry has failed."
-        # Replaced the fragile 'while read' loop with a robust awk call
-        bootEntry=$(efibootmgr --unicode | grep "Void Linux" | awk '{print $1}' | sed 's/Boot//g' | tr -d '*') || die
-        efibootmgr --bootorder "$bootEntry" || die
+        rest=$(efibootmgr | sed -n 's/^BootOrder: //p' | tr ',' '\n' | grep -vx "$newEntry" | paste -sd ',' -)
+        efibootmgr --bootorder "${newEntry}${rest:+,$rest}" || die
     fi
     exit 0
 }
@@ -38,13 +39,14 @@ chmod 755 / || die
 if [ "$secureboot" = "Yes" ]; then
     echo "Setting up Secure Boot with sbctl..."
     xbps-install -y sbctl || die "Failed to install sbctl."
-    
-    # Generate keys if they don't exist
-    if [ ! -d /var/lib/sbctl ]; then
+
+    # CHANGED: the sbctl package pre-creates /var/lib/sbctl (make_dirs), so a
+    # directory test is always true and create-keys never ran. Test the key file.
+    if [ ! -f /var/lib/sbctl/keys/db/db.key ]; then
         sbctl create-keys || die "Failed to create Secure Boot keys."
         echo -e "${YELLOW}Secure Boot keys generated. You MUST enroll them in your BIOS/UEFI on first boot!${NC}"
     fi
-    
+
     # Create the kernel hook for automatic signing
     # NOTE: Named 70-sbctl-sign so it runs AFTER 60-ukify (lexical order)
     mkdir -p /etc/kernel.d/post-install
@@ -53,17 +55,17 @@ if [ "$secureboot" = "Yes" ]; then
 # Hook to sign UKI binaries automatically
 command -v sbctl >/dev/null || exit 0
 
-# Sign standard vmlinuz UKI files or those in ESP
-for bin in /boot/efi/EFI/Linux/*.efi; do
+# Sign UKI binaries on the ESP; fail loudly if signing breaks
+for bin in /boot/efi/EFI/Linux/*.efi /boot/efi/EFI/boot/*.efi; do
     if [ -f "$bin" ]; then
-        sbctl sign -s "$bin"
+        sbctl sign -s "$bin" || exit 1
     fi
 done
 HOOK
     chmod +x /etc/kernel.d/post-install/70-sbctl-sign
 fi
 
-# --- UKI GENERATION & REGISTRATION ---
+# --- UKI GENERATION ---
 commandFailure="UKI generation has failed."
 
 # Ensure the UKI output directory exists BEFORE reconfiguring kernel
@@ -91,18 +93,32 @@ if [ ! -f "/boot/efi/EFI/Linux/void-linux.efi" ]; then
     xbps-reconfigure -fa || die
 fi
 
-# Register the UKI with UEFI NVRAM
+# NEW: hard gate. The xbps kernel-hooks trigger only LOGS hook failures (your log
+# showed a sbctl sign error followed by "configured successfully"), so verify here.
+if [ "$secureboot" = "Yes" ]; then
+    commandFailure="UKI is not signed with sbctl keys."
+    sbctl verify /boot/efi/EFI/Linux/void-linux.efi || die
+fi
+
+# --- UKI NVRAM REGISTRATION ---
 efi_label="Void Linux"
 efi_stub="/boot/efi/EFI/Linux/void-linux.efi"
-if [ -f "$efi_stub" ]; then
-    commandFailure="efibootmgr registration failed."
-    # Single quotes prevent shell expansion of backslashes
-    efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 \
-        --loader '\EFI\Linux\void-linux.efi' || die
-else
-    commandFailure="UKI stub not found at $efi_stub"
-    die
-fi
+[ -f "$efi_stub" ] || { commandFailure="UKI stub not found at $efi_stub"; die; }
+
+commandFailure="efibootmgr registration failed."
+# NEW: NVRAM survives failed install attempts (OVMF vars persist): purge any
+# leftover entries carrying our label before creating a new one.
+for n in $(efibootmgr | sed -n "s/^Boot\([0-9A-Fa-f]\{4\}\)[* ] *${efi_label} .*/\1/p"); do
+    efibootmgr -b "$n" -B >/dev/null || die
+done
+
+# Single quotes prevent shell expansion of backslashes
+efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 \
+    --loader '\EFI\Linux\void-linux.efi' || die
+
+# NEW: remember exactly which entry we just created (only one matches now)
+newEntry=$(efibootmgr | sed -n "s/^Boot\([0-9A-Fa-f]\{4\}\)[* ] *${efi_label} .*/\1/p" | head -n1)
+[ -n "$newEntry" ] || die
 
 ln -sf /usr/share/zoneinfo/"$timezone" /etc/localtime || die
 
@@ -122,12 +138,12 @@ if [ -z "$username" ]; then
 else
     useradd "$username" -m -d /home/"$username" || die
     usermod -aG audio,video,kvm,wheel "$username" || die
-    
+
     cat <<EOF > /home/"$username"/.bash_profile
 export CHROMIUM_FLAGS="--ozone-platform-hint=wayland --force-device-scale-factor=1.0"
 export GOOGLE_API_KEY="no"
-export GOOGLE_DEFAULT_CLIENT_ID="no"
-export GOOGLE_DEFAULT_CLIENT_SECRET="no"
+export GOOGLE_DEFAULT_CLIENT_ID="0"
+export GOOGLE_DEFAULT_CLIENT_SECRET="0"
 export LANG=${sys_locale}
 export LC_ALL=${sys_locale}
 if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
@@ -142,10 +158,10 @@ if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
     exec dbus-run-session startplasma-wayland
 fi
 EOF
-    
+
     chown "$username":"$username" /home/"$username"/.bash_profile
     chmod 644 /home/"$username"/.bash_profile
-    
+
     # TTY1 Autologin
     mkdir -p /etc/sv/agetty-tty1
     cat <<RUNEOF > /etc/sv/agetty-tty1/run
@@ -154,6 +170,6 @@ exec agetty --autologin $username --noclear tty1 linux
 RUNEOF
     chmod +x /etc/sv/agetty-tty1/run
     ln -sf /etc/sv/agetty-tty1 /var/service/agetty-tty1
-    
+
     clear; rootPassword
 fi
