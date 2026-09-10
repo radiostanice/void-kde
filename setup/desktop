@@ -49,12 +49,14 @@ commandFailure="GUI installation has failed"
 # Explicitly listing plasma-workspace documents our dependency for the .bash_profile autologin
 install plasma-desktop plasma-workspace
 
+# Install basic KDE applications 
+install dolphin konsole
+
 # Window Manager and X11 compatibility layer for Wayland
 install kwin xorg-server-xwayland
 
 # Core session, privilege, and IPC management (MUST be enabled for Plasma to function)
 install elogind polkit-elogind dbus
-enableService elogind
 enableService polkitd
 
 # Plasma-specific integrations for audio and network system tray widgets
