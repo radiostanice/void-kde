@@ -180,6 +180,14 @@ appsConfig() {
     )
     local selected=$(drawDialog --no-cancel --title "Additional Applications" --checklist "Select optional packages to install (Space to select, Enter to confirm):" 0 0 0 "${apps_list[@]}")
     extra_packages=$(echo "$selected" | tr -d '"')
+
+ # Confirmation screen to verify selected packages
+    if [ -n "$extra_packages" ]; then
+        drawDialog --title "Selected Packages" --msgbox "The following packages will be installed:\n\n$extra_packages" 0 0
+    else
+        drawDialog --title "Selected Packages" --msgbox "No additional packages were selected." 0 0
+    fi
+
     confirm
 }
 
