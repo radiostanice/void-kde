@@ -67,7 +67,8 @@ timezoneConfig() {
 
 # --- 4. DYNAMIC LOCALE ---
 localeConfig() {
-    local localeList=$(grep -F '.UTF-8' /etc/default/libc-locales | awk '{print $1}' | sed -e 's/^#//')    local tmp=()
+    local localeList=$(grep -F '.UTF-8' /etc/default/libc-locales | awk '{print $1}' | sed -e 's/^#//')
+    local tmp=()
     for i in $localeList; do
         tmp+=("$i" "$i")
     done
@@ -256,7 +257,7 @@ EOF
     cp /etc/resolv.conf /mnt/etc/resolv.conf || die
     cp -f "$(pwd)"/misc/libviss /mnt/tmp/libviss || die
     cp -f "$(pwd)"/setup/chroot /mnt/tmp/chroot || die
-    cp -f "$(pwd)"/misc/60-ukify  /mnt/tmp/60-ukify  || die
+    cp -f "$(pwd)"/misc/60-ukify /mnt/tmp/60-ukify || die
     
     system "/bin/bash /tmp/chroot"
     clear
