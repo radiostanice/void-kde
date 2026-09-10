@@ -96,9 +96,9 @@ efi_label="Void Linux"
 efi_stub="/boot/efi/EFI/Linux/void-linux.efi"
 if [ -f "$efi_stub" ]; then
     commandFailure="efibootmgr registration failed."
-    # Standard EFI paths require backslashes
+    # Single quotes prevent shell expansion of backslashes
     efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 \
-    --loader /EFI/Linux/void-linux.efi || die
+        --loader '\EFI\Linux\void-linux.efi' || die
 else
     commandFailure="UKI stub not found at $efi_stub"
     die
