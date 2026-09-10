@@ -77,4 +77,19 @@ system "mkdir -p /etc/alsa/conf.d"
 system "ln -sf /usr/share/alsa/alsa.conf.d/50-pipewire.conf /etc/alsa/conf.d/50-pipewire.conf"
 system "ln -sf /usr/share/alsa/alsa.conf.d/99-pipewire-default.conf /etc/alsa/conf.d/99-pipewire-default.conf"
 
+# --- ADDITIONAL SERVICES (CUPS / BLUETOOTH) ---
+commandFailure="Additional service setup has failed."
+
+# Enable CUPS if selected
+if echo "$extra_packages" | grep -qw "cups"; then
+    enableService cupsd
+fi
+
+# Enable Bluetooth if blueman is selected
+if echo "$extra_packages" | grep -qw "blueman"; then
+    # Blueman requires the bluez base package and the bluetoothd service
+    install bluez
+    enableService bluetoothd
+fi
+
 return 0
