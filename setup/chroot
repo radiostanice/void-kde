@@ -37,7 +37,7 @@ chmod 755 / || die
 # --- SECURE BOOT SETUP ---
 if [ "$secureboot" = "Yes" ]; then
     echo "Setting up Secure Boot with sbctl..."
-    xbps-install -y sbctl kernel-hooks || die "Failed to install sbctl and kernel-hooks."
+    xbps-install -y sbctl || die "Failed to install sbctl."
     
     # Generate keys if they don't exist
     if [ ! -d /var/lib/sbctl ]; then
