@@ -74,15 +74,26 @@ mkdir -p /boot/efi/EFI/Linux || die
 cp /tmp/60-ukify /etc/kernel.d/post-install/60-ukify || die
 chmod 755 /etc/kernel.d/post-install/60-ukify || die
 
-# Force kernel reconfiguration to trigger UKI generation
-xbps-reconfigure -f "$kernel" || die
+echo "=== STARTING KERNEL RECONFIGURE ($kernel) ==="
 
-# Explicitly reconfigure the initramfs generator to ensure it runs
-xbps-reconfigure -f "$initrd" || die
+# Force kernel reconfiguration to trigger UKI generation
+if ! xbps-reconfigure -f "$kernel"; then
+    echo "!!! CRITICAL: Kernel reconfigure FAILED. Dumping logs below !!!"
+    echo "--- /tmp/ukify.log ---"
+    cat /tmp/ukify.log 2>/dev/null || echo "(No ukify.log found)"
+    echo "--- /var/log/xbps.log (last 50 lines) ---"
+    tail -n 50 /var/log/xbps.log 2>/dev/null || echo "(No xbps.log found)"
+    echo "!!! END OF LOGS !!!"
+    die
+fi
+
+echo "=== KERNEL RECONFIGURE SUCCESSFUL ==="
+echo "--- /tmp/ukify.log (Success) ---"
+cat /tmp/ukify.log 2>/dev/null
 
 # Verify UKI was actually created before proceeding
 if [ ! -f "/boot/efi/EFI/Linux/void-linux.efi" ]; then
-    commandFailure="UKI stub not created at /boot/efi/EFI/Linux/void-linux.efi. See /var/log/ukify.log (inside target) for ukify errors."
+    commandFailure="UKI stub not created at /boot/efi/EFI/Linux/void-linux.efi."
     die
 fi
 
