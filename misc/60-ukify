@@ -1,34 +1,29 @@
 #!/bin/sh
-
 set -e
-
-PKGNAME="$1"
-VERSION="$2"
-
+PKGNAME="$1"; VERSION="$2"
 [ -x /usr/bin/ukify ] || exit 0
 
-# Log to /tmp for debugging
-STUB="/usr/lib/systemd/boot/efi/linuxx64.efi.stub"
-[ -f "$STUB" ] || { echo "60-ukify: missing $STUB (install systemd-boot-efistub)" >&2; exit 1; }
-[ -f "${ROOTDIR}/boot/initramfs-${VERSION}.img" ] || { echo "60-ukify: no initramfs yet" >&2; exit 1; }
-mkdir -p "${ROOTDIR}/boot/efi/EFI/Linux"
-LOG="/tmp/ukify.log"
-mkdir -p /tmp
+ROOTDIR=""
+OUTPUT="${ROOTDIR}/boot/efi/EFI/Linux/void-linux.efi"
+STUB="${ROOTDIR}/usr/lib/systemd/boot/efi/linuxx64.efi.stub"
+INITRD="${ROOTDIR}/boot/initramfs-${VERSION}.img"
 
-{
-    echo "=== ukify hook running ==="
-    echo "PKGNAME: $PKGNAME"
-    echo "VERSION: $VERSION"
-    echo "Building UKI..."
-} | tee -a "$LOG"
+[ -f "$STUB" ]   || { echo "60-ukify: missing $STUB (install systemd-boot-efistub)" >&2; exit 1; }
+[ -f "$INITRD" ] || { echo "60-ukify: missing $INITRD" >&2; exit 1; }
+mkdir -p "$(dirname "$OUTPUT")"
 
-# Build the UKI - use absolute paths (no ROOTDIR)
+CMDLINE="loglevel=4"
+[ -f "${ROOTDIR}/etc/kernel/cmdline" ] && CMDLINE=$(cat "${ROOTDIR}/etc/kernel/cmdline")
+
 ukify build \
-    --linux="/boot/vmlinuz-${VERSION}" \
-    --initrd="/boot/initramfs-${VERSION}.img" \
-    --output="/boot/efi/EFI/boot/bootx64.efi" \
-    --uname="${VERSION}" \
-    --stub="$STUB" \
-    --cmdline="loglevel=4" 2>&1 | tee -a "$LOG"
+	--linux="${ROOTDIR}/boot/vmlinuz-${VERSION}" \
+	--initrd="$INITRD" \
+	--output="$OUTPUT" \
+	--stub="$STUB" \
+	--uname="${VERSION}" \
+	--os-release=@/etc/os-release \
+	--cmdline="$CMDLINE"
 
-echo "ukify exit code: $?" | tee -a "$LOG"
+# optional: fallback path for VMs/firmwares that ignore NVRAM entries
+mkdir -p "${ROOTDIR}/boot/efi/EFI/boot"
+cp -f "$OUTPUT" "${ROOTDIR}/boot/efi/EFI/boot/bootx64.efi"
