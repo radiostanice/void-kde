@@ -73,16 +73,10 @@ echo "tmpfs /tmp tmpfs defaults,nosuid,nodev 0 0" >> /mnt/etc/fstab || die
 # Create the directory BEFORE writing to it
 mkdir -p /mnt/etc/kernel || die
 
-# FIX: Added spaces around =
 if [ "$encryption" = "Yes" ]; then
     luks_uuid=$(blkid -o value -s UUID "$root")
-    if [ "$initrd" = "dracut" ]; then
-        echo "rd.luks.name=$luks_uuid=void_root root=/dev/mapper/void_root rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
-    else
-        # tinyramfs reads LUKS info from /etc/tinyramfs/config, not cmdline.
-        # Just need root= pointing to the mapper device.
-        echo "root=/dev/mapper/void_root rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
-    fi
+    # Unified cmdline: dracut needs rd.luks.name, tinyramfs ignores it but needs root=
+    echo "rd.luks.name=$luks_uuid=void_root root=/dev/mapper/void_root rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
 else
     echo "root=UUID=$root_uuid rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
 fi
@@ -159,6 +153,10 @@ if [ "$encryption" == "Yes" ] && [ "$initrd" == "tinyramfs" ]; then
     luks_uuid=$(blkid -o value -s UUID "$root")
     echo "luks_root=UUID=$luks_uuid" >> "$CONFIG_FILE" || die
     echo "luks_name=void_root" >> "$CONFIG_FILE" || die
+
+    # Pin root and root_type so the packaged defaults don't interfere
+    sed -i 's|^root=.*|root=/dev/mapper/void_root|' "$CONFIG_FILE"
+    sed -i 's|^root_type=.*|root_type=ext4|' "$CONFIG_FILE"
 fi
 
 # --- SSD TRIM CONFIGURATION ---
