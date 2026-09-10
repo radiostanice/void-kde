@@ -7,14 +7,12 @@ exitFunction () {
     xbps-reconfigure -fa || { commandFailure="xbps-reconfigure failed."; die; }
     
     # SAFETY ADDITION: Force the new "Void Linux" entry to the top of the UEFI boot order.
+    # This prevents stubborn motherboards from ignoring the new UKI entry.
     if [ "$bootloader" = "uki" ]; then
-        bootEntry=$(efibootmgr --unicode | grep -i "Void Linux" | awk '{print $1}' | sed 's/Boot//g' | tr -d '*')
-        # Guard against empty bootEntry so it doesn't crash a successful install
-        if [ -n "$bootEntry" ]; then
-            efibootmgr --bootorder "$bootEntry" || echo "Warning: Failed to set default UEFI boot order."
-        else
-            echo "Warning: Could not find Void Linux UEFI entry to set as default."
-        fi
+        commandFailure="Setting default boot entry has failed."
+        # Replaced the fragile 'while read' loop with a robust awk call
+        bootEntry=$(efibootmgr --unicode | grep "Void Linux" | awk '{print $1}' | sed 's/Boot//g' | tr -d '*') || die
+        efibootmgr --bootorder "$bootEntry" || die
     fi
     exit 0
 }
@@ -39,18 +37,16 @@ chmod 755 / || die
 # --- SECURE BOOT SETUP ---
 if [ "$secureboot" = "Yes" ]; then
     echo "Setting up Secure Boot with sbctl..."
-    # FIX 1: 'kernel-hooks' is an xbps trigger shipped inside xbps-triggers,
-    # not an installable package. Only sbctl needs installing.
-    xbps-install -y sbctl || die "Failed to install sbctl."
-
-    # FIX 2: the sbctl package creates /var/lib/sbctl at install time (make_dirs),
-    # so check for the actual key material instead of the directory.
-    if [ ! -f /var/lib/sbctl/keys/db/db.pem ]; then
+    xbps-install -y sbctl kernel-hooks || die "Failed to install sbctl and kernel-hooks."
+    
+    # Generate keys if they don't exist
+    if [ ! -d /var/lib/sbctl ]; then
         sbctl create-keys || die "Failed to create Secure Boot keys."
         echo -e "${YELLOW}Secure Boot keys generated. You MUST enroll them in your BIOS/UEFI on first boot!${NC}"
     fi
-
+    
     # Create the kernel hook for automatic signing
+    # NOTE: Named 70-sbctl-sign so it runs AFTER 60-ukify (lexical order)
     mkdir -p /etc/kernel.d/post-install
     cat <<'HOOK' > /etc/kernel.d/post-install/70-sbctl-sign
 #!/bin/sh
@@ -58,8 +54,10 @@ if [ "$secureboot" = "Yes" ]; then
 command -v sbctl >/dev/null || exit 0
 
 # Sign standard vmlinuz UKI files or those in ESP
-for bin in /boot/vmlinuz*.efi /boot/efi/EFI/Linux/*.efi /boot/EFI/Void/*.efi; do
-    [ -f "$bin" ] && sbctl sign -s "$bin" 2>/dev/null
+for bin in /boot/efi/EFI/Linux/*.efi; do
+    if [ -f "$bin" ]; then
+        sbctl sign -s "$bin"
+    fi
 done
 HOOK
     chmod +x /etc/kernel.d/post-install/70-sbctl-sign
@@ -69,45 +67,26 @@ fi
 commandFailure="UKI generation has failed."
 
 # Ensure the UKI output directory exists BEFORE reconfiguring kernel
-mkdir -p /boot/efi/EFI/boot || die  # Changed from EFI/Linux
+mkdir -p /boot/efi/EFI/Linux || die
 
+# Copy the ukify hook into place
 cp /tmp/60-ukify /etc/kernel.d/post-install/60-ukify || die
 chmod 755 /etc/kernel.d/post-install/60-ukify || die
 
-echo "=== STARTING KERNEL RECONFIGURE ==="
-
-# Use the working script's kernel detection method
-KERNEL_VERSION=$(find /boot -name vmlinuz\* | tr -d "/boot/vmlinuz-" | cut -f1,2 -d".")
-echo "Detected kernel version: $KERNEL_VERSION"
-
-# Force kernel reconfiguration to trigger UKI generation
-if ! xbps-reconfigure -f "linux${KERNEL_VERSION}"; then
-    echo "!!! Kernel reconfigure FAILED !!!"
-    cat /tmp/ukify.log 2>/dev/null || echo "No ukify.log"
+# Dynamically find the installed kernel package (e.g., linux, linux-lts)
+kernel_pkg=$(xbps-query -l | awk '$1 == "ii" && $2 ~ /^linux/ {print $2}' | sed 's/-[0-9].*//' | head -n 1)
+if [ -z "$kernel_pkg" ]; then
+    commandFailure="Could not detect installed kernel package."
     die
 fi
 
-echo "=== KERNEL RECONFIGURE SUCCESSFUL ==="
-cat /tmp/ukify.log 2>/dev/null
-
-# Verify UKI was created at the correct path
-if [ ! -f "/boot/efi/EFI/boot/bootx64.efi" ]; then
-    commandFailure="UKI stub not created at /boot/efi/EFI/boot/bootx64.efi"
-    echo "!!! UKI NOT FOUND !!!"
-    cat /tmp/ukify.log 2>/dev/null
-    die
-fi
-
-# Create the EFI boot entry
-efibootmgr --create --label "Void Linux" --disk "$diskInput" --part 1 --loader '\EFI\boot\bootx64.efi' || die
-
-echo "=== KERNEL RECONFIGURE SUCCESSFUL ==="
-echo "--- /tmp/ukify.log (Success) ---"
-cat /tmp/ukify.log 2>/dev/null
+# Force kernel reconfiguration to trigger initramfs + UKI generation
+# This runs 20-initramfs (tinyramfs or dracut) -> 60-ukify -> 70-sbctl-sign
+xbps-reconfigure -f "$kernel_pkg" || die
 
 # Verify UKI was actually created before proceeding
-if [ ! -f "/boot/efi/EFI/boot/bootx64.efi" ]; then 
-    commandFailure="UKI stub not created at /boot/efi/EFI/boot/bootx64.efi"
+if [ ! -f "/boot/efi/EFI/Linux/void-linux.efi" ]; then
+    commandFailure="UKI stub not created at /boot/efi/EFI/Linux/void-linux.efi. Check /var/log/xbps.log for ukify errors."
     die
 fi
 
@@ -117,7 +96,7 @@ efi_stub="/boot/efi/EFI/Linux/void-linux.efi"
 if [ -f "$efi_stub" ]; then
     commandFailure="efibootmgr registration failed."
     # Standard EFI paths require backslashes
-    efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 --loader '\EFI\Linux\void-linux.efi' || die
+    efibootmgr --create --label "$efi_label" --disk "$diskInput" --part 1 --loader '\\EFI\\Linux\\void-linux.efi' || die
 else
     commandFailure="UKI stub not found at $efi_stub"
     die
@@ -173,9 +152,6 @@ exec agetty --autologin $username --noclear tty1 linux
 RUNEOF
     chmod +x /etc/sv/agetty-tty1/run
     ln -sf /etc/sv/agetty-tty1 /var/service/agetty-tty1
-
-    # Clean up temporary orchestrator files from the installed system's /tmp
-    rm -f /tmp/libviss /tmp/chroot /tmp/installerOptions /tmp/60-ukify
     
     clear; rootPassword
 fi
