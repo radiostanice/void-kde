@@ -168,17 +168,15 @@ securebootConfig() {
 # --- 12. ADDITIONAL APPLICATIONS CHECKLIST ---
 appsConfig() {
     local apps_list=(
+        "octoxbps" "OctoXBPS package manager" on
+        "ark" "KDE archive manager" on
+        "kate" "KDE advanced text editor" on
+        "chromium" "Chromium web browser" off
+        "firefox" "Firefox web browser" off
         "flatpak" "Flatpak package management" off
-        "git" "Git version control" off
-        "vim" "Vim text editor" off
         "htop" "System monitor" off
         "blueman" "Bluetooth GUI manager" off
         "cups" "CUPS printing support" off
-        "ark" "KDE archive manager" off
-        "kate" "KDE advanced text editor" off
-        "dolphin" "KDE file manager" off
-        "zsh" "Zsh shell" off
-        "firefox" "Firefox web browser" off
     )
     local selected=$(drawDialog --no-cancel --title "Additional Applications" --checklist "Select optional packages to install (Space to select, Enter to confirm):" 0 0 0 "${apps_list[@]}")
     extra_packages=$(echo "$selected" | tr -d '"')
