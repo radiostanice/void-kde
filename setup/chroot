@@ -176,6 +176,7 @@ export GOOGLE_DEFAULT_CLIENT_SECRET="0"
 export LANG=${sys_locale}
 export LC_ALL=${sys_locale}
 if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
+    # Escaped so it evaluates the user's actual UID at login, not root's UID (0)
     export XDG_RUNTIME_DIR="/run/user/\$(id -u)"
     if [ ! -d "\$XDG_RUNTIME_DIR" ]; then
         mkdir -p "\$XDG_RUNTIME_DIR"
@@ -184,35 +185,16 @@ if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ]; then
     export XDG_SESSION_TYPE=wayland
     export XDG_CURRENT_DESKTOP=KDE
     export QT_QPA_PLATFORM=wayland
-    
-    pipewire >/dev/null 2>&1 &
-    
     exec dbus-run-session startplasma-wayland
 fi
-
 unset HISTFILE
 EOF
 
     chown "$username":"$username" /home/"$username"/.bash_profile
     chmod 644 /home/"$username"/.bash_profile
 
-    # Setup XDG autostart directory for the user
-    mkdir -p /home/"$username"/.config/autostart
-
-    # Link octoxbps-notifier to autostart if octoxbps was installed
-    if xbps-query -l | grep -q '^ii.*octoxbps'; then
-        if [ -f /etc/xdg/autostart/octoxbps-notifier.desktop ]; then
-            ln -sf /etc/xdg/autostart/octoxbps-notifier.desktop /home/"$username"/.config/autostart/
-        elif [ -f /usr/share/applications/octoxbps-notifier.desktop ]; then
-            ln -sf /usr/share/applications/octoxbps-notifier.desktop /home/"$username"/.config/autostart/
-        fi
-    fi
-
-    chown -R "$username":"$username" /home/"$username"/.config
-
     # TTY1 Autologin
     mkdir -p /etc/sv/agetty-tty1
-
     cat <<RUNEOF > /etc/sv/agetty-tty1/run
 #!/bin/sh
 exec agetty --autologin $username --noclear tty1 linux
