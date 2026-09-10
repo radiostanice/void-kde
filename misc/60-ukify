@@ -8,6 +8,10 @@ VERSION="$2"
 [ -x /usr/bin/ukify ] || exit 0
 
 # Log to /tmp for debugging
+STUB="/usr/lib/systemd/boot/efi/linuxx64.efi.stub"
+[ -f "$STUB" ] || { echo "60-ukify: missing $STUB (install systemd-boot-efistub)" >&2; exit 1; }
+[ -f "${ROOTDIR}/boot/initramfs-${VERSION}.img" ] || { echo "60-ukify: no initramfs yet" >&2; exit 1; }
+mkdir -p "${ROOTDIR}/boot/efi/EFI/Linux"
 LOG="/tmp/ukify.log"
 mkdir -p /tmp
 
@@ -24,6 +28,7 @@ ukify build \
     --initrd="/boot/initramfs-${VERSION}.img" \
     --output="/boot/efi/EFI/boot/bootx64.efi" \
     --uname="${VERSION}" \
+    --stub="$STUB" \
     --cmdline="loglevel=4" 2>&1 | tee -a "$LOG"
 
 echo "ukify exit code: $?" | tee -a "$LOG"
