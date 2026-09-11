@@ -168,6 +168,9 @@ else
     useradd "$username" -m -d /home/"$username" || die
     usermod -aG audio,video,kvm,wheel "$username" || die
 
+    echo "$username ALL=(ALL:ALL) ALL" > /etc/sudoers.d/$username
+    chmod 440 /etc/sudoers.d/$username
+
     cat <<EOF > /home/"$username"/.bash_profile
 export CHROMIUM_FLAGS="--ozone-platform-hint=wayland --force-device-scale-factor=1.0"
 export GOOGLE_API_KEY="no"
@@ -193,14 +196,9 @@ EOF
     chown "$username":"$username" /home/"$username"/.bash_profile
     chmod 644 /home/"$username"/.bash_profile
 
-    # TTY1 Autologin
-    mkdir -p /etc/sv/agetty-tty1
-    cat <<RUNEOF > /etc/sv/agetty-tty1/run
-#!/bin/sh
-exec agetty --autologin $username --noclear tty1 linux
-RUNEOF
-    chmod +x /etc/sv/agetty-tty1/run
-    ln -sf /etc/sv/agetty-tty1 /var/service/agetty-tty1
+# TTY1 Autologin 
+mkdir -p /etc/sv/agetty-tty1
+echo "GETTY_ARGS=\"--noclear --autologin $username\"" > /etc/sv/agetty-tty1/conf
 
     clear; rootPassword
 fi
