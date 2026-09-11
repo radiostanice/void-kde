@@ -210,7 +210,8 @@ appsConfig() {
         "octoxbps" "OctoXBPS package manager" on
         "ark" "KDE archive manager" on
         "kate" "KDE advanced text editor" on
-        "oxygen" "KDE theme - Recommended" off
+        "oxygen" "KDE theme - Recommended" on
+        "spectacle" "KDE screenshot capture utility" on
         "chromium" "Chromium web browser" off
         "firefox" "Firefox web browser" off
         "flatpak" "Flatpak package management" off
@@ -336,6 +337,13 @@ EOF
     # Success path: drop the leftover /tmp log (die() leaves it in /tmp on failure)
     rm -f "$logFile"
     
+    # --- SECURE BOOT ENROLLMENT WARNING ---
+    if [ "$secureboot" = "Yes" ]; then
+        drawDialog --title "!!! CRITICAL: SECURE BOOT !!!" \
+                   --msgbox "Custom Secure Boot keys were generated.\n\nYou MUST enter your BIOS/UEFI settings on your FIRST BOOT and enroll these keys (or the hash of the UKI).\n\nIf you do not do this, the system WILL NOT BOOT." 16 60
+    fi
+
+    # --- FINAL REBOOT DIALOG ---
     if drawDialog --title "Installation Complete" --yes-label "Reboot" --no-label "Exit" --yesno "Installation finished successfully.\n\nTotal installer runtime: ${SECONDS} seconds." 0 0 ; then
         reboot now
     else
