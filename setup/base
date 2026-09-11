@@ -77,9 +77,9 @@ if [ "$encryption" = "Yes" ]; then
     luks_uuid=$(blkid -o value -s UUID "$root")
     [ -n "$luks_uuid" ] || die "Failed to get LUKS UUID for $root."
     # Unified cmdline: dracut needs rd.luks.name, tinyramfs ignores it but needs root=
-    echo "rd.luks.name=$luks_uuid=void_root root=/dev/mapper/void_root rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
+    echo "rd.luks.name=$luks_uuid=void_root root=/dev/mapper/void_root rootfstype=ext4 rw quiet" > /mnt/etc/kernel/cmdline || die
 else
-    echo "root=UUID=$root_uuid rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
+    echo "root=UUID=$root_uuid rootfstype=ext4 rw quiet" > /mnt/etc/kernel/cmdline || die
 fi
 
 # --- LOCALE & HOSTNAME ---
