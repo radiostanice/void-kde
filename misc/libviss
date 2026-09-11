@@ -6,6 +6,13 @@ GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 NC='\033[0m'
 
+# --- 1. DIALOG THEME SETUP ---
+# Find the directory this script is in (which is 'misc/')
+_VISS_MISC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+if [ -f "${_VISS_MISC_DIR}/dialogrc" ]; then
+    export DIALOGRC="${_VISS_MISC_DIR}/dialogrc"
+fi
+
 # --- Robust Cleanup Function ---
 cleanup_mounts() {
     # Unmount chroot virtual filesystems
@@ -49,7 +56,7 @@ die() {
 }
 
 drawDialog() {
-    dialog --no-shadow --stdout --no-mouse \
+    dialog --stdout --no-mouse \
            --backtitle "Void Linux Custom Installer" "$@"
 }
 
