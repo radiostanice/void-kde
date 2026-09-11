@@ -10,7 +10,7 @@ for i in "${graphicsArray[@]}"; do
             install mesa-dri vulkan-loader mesa-vulkan-radeon mesa-vaapi
             ;;
         intel)
-            install mesa-dri vulkan-loader mesa-vulkan-intel intel-video-accel
+            install mesa-dri vulkan-loader mesa-vulkan-intel intel-media-driver
             ;;
         nvidia)
             install void-repo-nonfree
