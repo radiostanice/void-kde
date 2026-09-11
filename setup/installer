@@ -38,8 +38,6 @@ xbps-install -Suy xbps || die
 xbps-install -Suy dialog || die
 
 dialog --create-rc ~/.dialogrc
-sed -i -e 's/screen_color = (CYAN,BLUE,ON)/screen_color = (BLACK,BLACK,ON)/g' ~/.dialogrc
-sed -i -e 's/title_color = (BLUE,WHITE,ON)/title_color = (BLACK,WHITE,ON)/g' ~/.dialogrc
 
 logFile="/tmp/void-install-script.log"
 
