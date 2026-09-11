@@ -68,15 +68,6 @@ install fwupd lm_sensors clinfo glxinfo Vulkan-Tools wayland-utils xdpyinfo mesa
 # Basic XDG utilities
 install xdg-user-dirs xdg-utils 
 
-# --- AUDIO SERVER ---
-commandFailure="Audio server installation has failed."
-install pipewire wireplumber alsa-pipewire
-
-# ALSA configuration for pipewire
-system "mkdir -p /etc/alsa/conf.d"
-system "ln -sf /usr/share/alsa/alsa.conf.d/50-pipewire.conf /etc/alsa/conf.d/50-pipewire.conf"
-system "ln -sf /usr/share/alsa/alsa.conf.d/99-pipewire-default.conf /etc/alsa/conf.d/99-pipewire-default.conf"
-
 # --- XDG AUTOSTART & SERVICES (SYSTEM-WIDE) ---
 commandFailure="System-wide autostart and service setup has failed."
 
@@ -94,8 +85,20 @@ if echo "$extra_packages" | grep -qw "blueman"; then
     enableService bluetoothd
 fi
 
-# Link PipeWire & Wireplumber to system-wide autostart
-# Void places these .desktop files in /usr/share/applications/; they must be symlinked to /etc/xdg/autostart/ to autostart correctly
+# --- AUDIO SERVER ---
+commandFailure="Audio server installation has failed."
+install pipewire wireplumber alsa-pipewire pipewire-pulse
+
+# ALSA configuration for pipewire
+system "mkdir -p /etc/alsa/conf.d"
+system "ln -sf /usr/share/alsa/alsa.conf.d/50-pipewire.conf /etc/alsa/conf.d/50-pipewire.conf"
+system "ln -sf /usr/share/alsa/alsa.conf.d/99-pipewire-default.conf /etc/alsa/conf.d/99-pipewire-default.conf"
+
+system "mkdir -p /etc/pipewire/pipewire.conf.d"
+system "ln -sf /usr/share/examples/wireplumber/10-wireplumber.conf /etc/pipewire/pipewire.conf.d/"
+system "ln -sf /usr/share/examples/pipewire/20-pipewire-pulse.conf /etc/pipewire/pipewire.conf.d/"
+
+# Link to autostart
 system "ln -sf /usr/share/applications/pipewire.desktop /etc/xdg/autostart/pipewire.desktop"
 
 # Link OctoXBPS notifier to system-wide autostart if selected
