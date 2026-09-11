@@ -49,9 +49,6 @@ commandFailure="GUI installation has failed"
 # Explicitly listing plasma-workspace documents our dependency for the .bash_profile autologin
 install plasma-desktop plasma-workspace
 
-# Install basic KDE applications 
-install dolphin konsole
-
 # Window Manager and X11 compatibility layer for Wayland
 install kwin xorg-server-xwayland
 
@@ -62,9 +59,6 @@ enableService polkitd
 # Plasma-specific integrations for audio and network system tray widgets
 install plasma-pa plasma-nm
 
-#  Plasma utilities for info center
-install fwupd lm_sensors clinfo glxinfo Vulkan-Tools wayland-utils xdpyinfo mesa-demos
-
 # Basic XDG utilities
 install xdg-user-dirs xdg-utils 
 
@@ -74,12 +68,15 @@ commandFailure="System-wide autostart and service setup has failed."
 # Ensure the system-wide autostart directory exists inside the target system
 system "mkdir -p /etc/xdg/autostart"
 
-# Enable CUPS if selected
+# --- EXTRA PACKAGES SETUP ---
+if echo "$extra_packages" | grep -qw "kinfocenter"; then
+    install fwupd lm_sensors clinfo glxinfo Vulkan-Tools wayland-utils xdpyinfo mesa-demos
+fi
+
 if echo "$extra_packages" | grep -qw "cups"; then
     enableService cupsd
 fi
 
-# Enable Bluetooth if blueman is selected (installs bluez base package and enables service)
 if echo "$extra_packages" | grep -qw "blueman"; then
     install bluez
     enableService bluetoothd
