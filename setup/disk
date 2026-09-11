@@ -5,14 +5,11 @@ echo "Running setup/disk..."
 echo "Cleaning previous installation..."
 
 # 1. Unmount everything first (critical before wiping), deepest mounts first
-for mount_point in $(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | grep -v '^$' | sort -r); do
+while IFS= read -r mount_point; do
+    [ -z "$mount_point" ] && continue
     echo "Unmounting $mount_point..."
     umount -f -l "$mount_point" 2>/dev/null || true
-done
-# Belt-and-braces: anything an aborted run left under /mnt
-for mount_point in $(awk '{print $2}' /proc/mounts | grep '^/mnt' | sort -r); do
-    umount -f -l "$mount_point" 2>/dev/null || true
-done
+done < <(lsblk -ln -o MOUNTPOINT "$diskInput" 2>/dev/null | sort -r)
 
 # 2. Close LUKS containers / remove stale dm mappings backed by this disk.
 #    Ask cryptsetup itself which device each mapping wraps instead of guessing
@@ -129,21 +126,15 @@ if [ "$encryption" == "Yes" ]; then
         fi
     fi
 
-    crypt_options="--type luks2 --batch-mode --verify-passphrase --pbkdf argon2id"
+    local crypt_options=("--type" "luks2" "--batch-mode" "--verify-passphrase" "--pbkdf" "argon2id")
     if [ "$is_ssd" -eq 1 ]; then
-        crypt_options="$crypt_options --allow-discards"
+        crypt_options+=("--allow-discards")
     fi
 
-    while : ; do
-        cryptsetup luksFormat $crypt_options "$root"
-        [ "$?" -eq 0 ] && break
-    done
+    while ! cryptsetup luksFormat "${crypt_options[@]}" "$root"; do :; done
 
     echo -e "${YELLOW}Opening encrypted partition...${NC}"
-    while : ; do
-        cryptsetup luksOpen "$root" void_root
-        [ "$?" -eq 0 ] && break
-    done
+    while ! cryptsetup luksOpen "$root" void_root; do :; done
 
     format_target="/dev/mapper/void_root"
 else
