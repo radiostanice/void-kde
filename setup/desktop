@@ -56,8 +56,8 @@ install kwin xorg-server-xwayland
 install elogind polkit-elogind dbus
 enableService polkitd
 
-# Plasma-specific integrations for audio and network system tray widgets and the default sound theme
-install plasma-pa plasma-nm ocean-sound-theme
+# Plasma-specific integrations for audio and network system tray widgets, the default sound theme, and power profile management
+install plasma-pa plasma-nm ocean-sound-theme power-profiles-daemon
 
 # Basic XDG utilities
 install xdg-user-dirs xdg-utils 
