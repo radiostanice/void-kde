@@ -23,13 +23,12 @@ exitFunction () {
 
 userPassword() {
     echo -e "${YELLOW}Set password for user $username: ${NC}"
-    while :; do passwd "$username"; [ "$?" -eq 0 ] && break; done
-    exitFunction
+    while ! passwd "$username"; do :; done
 }
 
 rootPassword() {
     echo -e "${YELLOW}Set your root password: ${NC}"
-    while :; do passwd root; [ "$?" -eq 0 ] && break; done
+    while ! passwd root; do :; done
     [ -n "$username" ] && userPassword
     exitFunction
 }
