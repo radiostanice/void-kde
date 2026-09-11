@@ -13,30 +13,30 @@ cat << 'EOF' > "$DIALOGRC"
 use_shadow = OFF
 use_colors = ON
 screen_color = (WHITE,BLACK,OFF)
-shadow_color = (WHITE,BLACK,OFF)
-dialog_color = (WHITE,BLACK,ON)
+shadow_color = (BLACK,BLACK,OFF)
+dialog_color = (WHITE,BLACK,OFF)
 title_color = (YELLOW,BLACK,ON)
-border_color = (WHITE,BLACK,ON)
-button_active_color = (BLACK,WHITE,ON)
-button_inactive_color = (WHITE,BLACK,ON)
-button_key_active_color = (BLACK,WHITE,ON)
-button_key_inactive_color = (WHITE,BLACK,ON)
-button_label_active_color = (BLACK,WHITE,ON)
-button_label_inactive_color = (WHITE,BLACK,ON)
-inputbox_color = (WHITE,BLACK,ON)
-inputbox_border_color = (WHITE,BLACK,ON)
-searchbox_color = (WHITE,BLACK,ON)
+border_color = (WHITE,BLACK,OFF)
+button_active_color = (WHITE,BLUE,ON)
+button_inactive_color = (WHITE,BLACK,OFF)
+button_key_active_color = (YELLOW,BLUE,ON)
+button_key_inactive_color = (WHITE,BLACK,OFF)
+button_label_active_color = (WHITE,BLUE,ON)
+button_label_inactive_color = (WHITE,BLACK,OFF)
+inputbox_color = (WHITE,BLACK,OFF)
+inputbox_border_color = (WHITE,BLACK,OFF)
+searchbox_color = (WHITE,BLACK,OFF)
 searchbox_title_color = (YELLOW,BLACK,ON)
-searchbox_border_color = (WHITE,BLACK,ON)
+searchbox_border_color = (WHITE,BLACK,OFF)
 position_indicator_color = (YELLOW,BLACK,ON)
-menubox_color = (WHITE,BLACK,ON)
-menubox_border_color = (WHITE,BLACK,ON)
+menubox_color = (WHITE,BLACK,OFF)
+menubox_border_color = (WHITE,BLACK,OFF)
 item_color = (WHITE,BLACK,OFF)
-item_selected_color = (BLACK,WHITE,ON)
-tag_color = (YELLOW,BLACK,ON)
-tag_selected_color = (BLACK,WHITE,ON)
-tag_key_color = (YELLOW,BLACK,ON)
-tag_key_selected_color = (BLACK,WHITE,ON)
+item_selected_color = (WHITE,BLUE,ON)
+tag_color = (YELLOW,BLACK,OFF)
+tag_selected_color = (WHITE,BLUE,ON)
+tag_key_color = (YELLOW,BLACK,OFF)
+tag_key_selected_color = (WHITE,BLUE,ON)
 EOF
 
 . "$(pwd)/misc/libviss" || { echo "$(pwd)/misc/libviss not found. Cannot continue."; exit 1; }
@@ -78,19 +78,24 @@ userConfig() {
 # --- 3. DYNAMIC TIMEZONE ---
 timezoneConfig() {
     local areas=(Africa America Antarctica Arctic Asia Atlantic Australia Europe Indian Pacific)
-    
-    # dialog --menu requires pairs of (tag, item). We use "" for the item description.
-    if area=$(drawDialog --no-cancel --title "Set Timezone" --menu "Select your region:" 0 0 0 $(printf '%s "" ' "${areas[@]}")); then
-        mapfile -t locations < <(find "/usr/share/zoneinfo/$area" -type f -printf '%P\n' | sort) 2>/dev/null
-        
-        # Replace underscores with spaces for the dialog display
+
+    local menu_args=() a
+    for a in "${areas[@]}"; do menu_args+=("$a" ""); done
+
+    local area location
+    if area=$(drawDialog --no-cancel --title "Set Timezone" \
+            --menu "Select your region:" 0 0 0 "${menu_args[@]}"); then
+
+        mapfile -t locations < <(find "/usr/share/zoneinfo/$area" -type f -printf '%P\n' 2>/dev/null | sort)
         local display_locations=("${locations[@]//_/ }")
-        local location=$(drawDialog --no-cancel --title "Set Timezone" --menu "Select your location:" 0 0 0 $(printf '%s "" ' "${display_locations[@]}"))
-        
-        # Convert the selected location back to underscores for the timezone variable
+
+        local loc_args=() l
+        for l in "${display_locations[@]}"; do loc_args+=("$l" ""); done
+        location=$(drawDialog --no-cancel --title "Set Timezone" \
+                --menu "Select your location:" 0 0 0 "${loc_args[@]}")
         location="${location// /_}"
     fi
-    
+
     if [ -n "$area" ] && [ -n "$location" ]; then
         timezone="$area/$location"
     else
