@@ -1,5 +1,5 @@
 use_colors = ON
-use_shadow = OFF
+use_shadow = ON
 
 screen_color = (WHITE,BLACK,OFF)
 shadow_color = (BLACK,BLACK,OFF)
@@ -26,11 +26,11 @@ position_indicator_color = (GREEN,BLACK,ON)
 
 menubox_color = (WHITE,BLACK,OFF)
 menubox_border_color = (WHITE,BLACK,ON)
-menubox_border2_color = (WHITE,BLACK,ON)
+menubox_border2_color = (WHITE,BLACK,OFF)
 item_color = (WHITE,BLACK,ON)
 tag_color = (WHITE,BLACK,ON)
 tag_key_color = (GREEN,BLACK,ON)
-item_selected_color = (GREEN,BLACK,ON)
+item_selected_color = (GREEN,WHITE,OFF)
 tag_selected_color = (GREEN,BLACK,ON)
 tag_key_selected_color = (GREEN,BLACK,ON)
 
