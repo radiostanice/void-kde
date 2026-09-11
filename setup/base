@@ -161,4 +161,31 @@ EOF
     fi
 fi
 
+# --- SSD TRIM CONFIGURATION ---
+is_ssd=0
+base_disk=$(basename "$diskInput")
+if [ -f "/sys/block/$base_disk/queue/rotational" ]; then
+    if [ "$(cat /sys/block/$base_disk/queue/rotational)" -eq 0 ]; then
+        is_ssd=1
+    fi
+fi
+
+if [ "$is_ssd" -eq 1 ]; then
+    commandFailure="Configuring SSD TRIM has failed."
+    
+    # Install cronie (fstrim is already provided by util-linux in base-system)
+    install cronie || die
+    
+    # Create the weekly cron job
+    mkdir -p /mnt/etc/cron.weekly || die
+    cat << 'CRON_EOF' > /mnt/etc/cron.weekly/fstrim
+#!/bin/sh
+/usr/bin/fstrim -av
+CRON_EOF
+    chmod +x /mnt/etc/cron.weekly/fstrim || die
+    
+    # Enable the cronie runit service using your existing libviss function
+    enableService cronie
+fi
+
 return 0
