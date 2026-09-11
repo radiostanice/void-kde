@@ -122,7 +122,7 @@ if [ -n "$extra_packages" ]; then
 fi
 
 # --- TINYRAMFS & LUKS CONFIGURATION ---
-if [ "$encryption" = "Yes" ] && [ "$initrd" = "tinyramfs" ]; then
+if [ "$initrd" = "tinyramfs" ]; then
     commandFailure="Configuring tinyramfs has failed."
     mkdir -p /mnt/etc/tinyramfs || die
     
@@ -135,23 +135,27 @@ if [ "$encryption" = "Yes" ] && [ "$initrd" = "tinyramfs" ]; then
         fi
     fi
 
-    luks_uuid=$(blkid -o value -s UUID "$root")
-    [ -n "$luks_uuid" ] || die "Failed to get LUKS UUID for $root."
+    if [ "$encryption" = "Yes" ]; then
+        luks_uuid=$(blkid -o value -s UUID "$root")
+        [ -n "$luks_uuid" ] || die "Failed to get LUKS UUID for $root."
 
-    # FIX: Write the config directly. 
-    # IMPORTANT: The heredoc content MUST NOT be indented with spaces. 
-    # If you indent the text below, those spaces will be written to the file 
-    # and tinyramfs will fail to parse the config at boot!
-    cat <<EOF > /mnt/etc/tinyramfs/config
-hooks="base,eudev,luks,rootfs"
+        cat <<EOF > /mnt/etc/tinyramfs/config
+hooks="eudev,luks"
 luks_root=UUID=$luks_uuid
 luks_name=void_root
 root=/dev/mapper/void_root
 root_type=ext4
 EOF
 
-    if [ "$is_ssd" -eq 1 ]; then
-        echo 'luks_discard=yes' >> /mnt/etc/tinyramfs/config
+        if [ "$is_ssd" -eq 1 ]; then
+            echo 'luks_discard=yes' >> /mnt/etc/tinyramfs/config
+        fi
+    else
+        cat <<EOF > /mnt/etc/tinyramfs/config
+hooks="eudev"
+root=UUID=$root_uuid
+root_type=ext4
+EOF
     fi
 fi
 
