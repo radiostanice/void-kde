@@ -3,7 +3,9 @@
 commandFailure="Copying XBPS keys has failed."
 
 mkdir -p /mnt/var/db/xbps/keys || die
-cp /var/db/xbps/keys/* /mnt/var/db/xbps/keys || die
+# FIX: Use find to safely copy keys without failing if the source directory is empty 
+# (prevents "cannot stat '*'" errors from `cp *`)
+find /var/db/xbps/keys -maxdepth 1 -type f -exec cp {} /mnt/var/db/xbps/keys/ \; || die
 
 # --- PRE-INSTALL IGNOREPKG CONFIGURATION ---
 mkdir -p /mnt/etc/xbps.d
@@ -115,16 +117,15 @@ enableService chronyd
 # --- INSTALL ADDITIONAL APPS ---
 if [ -n "$extra_packages" ]; then
     commandFailure="Additional packages installation has failed."
+    # shellcheck disable=SC2086 (Intentional word splitting to pass multiple packages)
     install $extra_packages
 fi
 
 # --- TINYRAMFS & LUKS CONFIGURATION ---
-if [ "$encryption" == "Yes" ] && [ "$initrd" == "tinyramfs" ]; then
+if [ "$encryption" = "Yes" ] && [ "$initrd" = "tinyramfs" ]; then
     commandFailure="Configuring tinyramfs has failed."
     mkdir -p /mnt/etc/tinyramfs || die
-    CONFIG_FILE="/mnt/etc/tinyramfs/config"
-    touch "$CONFIG_FILE"
-
+    
     # Detect if disk is an SSD (to enable luks_discard)
     is_ssd=0
     base_disk=$(basename "$diskInput")
@@ -134,37 +135,14 @@ if [ "$encryption" == "Yes" ] && [ "$initrd" == "tinyramfs" ]; then
         fi
     fi
 
-    # Append the 'luks' hook if it's not already there (corrected hook name and delimiter)
-    if grep -q "^hooks=" "$CONFIG_FILE"; then
-        if ! grep -E "^hooks=.*\bluks\b" "$CONFIG_FILE" >/dev/null; then
-            sed -i '/^hooks=/ s/\(.*\)"/\1,luks"/' "$CONFIG_FILE"
-        fi
-    else
-        echo 'hooks="eudev,luks"' >> "$CONFIG_FILE"
-    fi
-
-    # Enable LUKS discard for SSDs
-    if [ "$is_ssd" -eq 1 ]; then
-        echo 'luks_discard=yes' >> "$CONFIG_FILE"
-    fi
-    
-    # tinyramfs needs to know the LUKS root UUID and name to unlock it at boot
-    luks_uuid=$(blkid -o value -s UUID "$root")
-    echo "luks_root=UUID=$luks_uuid" >> "$CONFIG_FILE" || die
-    echo "luks_name=void_root" >> "$CONFIG_FILE" || die
-
-    # Pin root and root_type so the packaged defaults don't interfere
-    sed -i 's|^root=.*|root=/dev/mapper/void_root|' "$CONFIG_FILE"
-    sed -i 's|^root_type=.*|root_type=ext4|' "$CONFIG_FILE"
-
-    # ... SSD detection ...
-
     luks_uuid=$(blkid -o value -s UUID "$root")
     [ -n "$luks_uuid" ] || die "Failed to get LUKS UUID for $root."
 
-    # FIX: Write the config directly. The original script touched an empty file and then
-    # ran grep/sed on it, which silently failed and left the config incomplete.
-    cat <<EOF > "$CONFIG_FILE"
+    # FIX: Write the config directly. 
+    # IMPORTANT: The heredoc content MUST NOT be indented with spaces. 
+    # If you indent the text below, those spaces will be written to the file 
+    # and tinyramfs will fail to parse the config at boot!
+    cat <<EOF > /mnt/etc/tinyramfs/config
 hooks="base,eudev,luks,rootfs"
 luks_root=UUID=$luks_uuid
 luks_name=void_root
@@ -173,7 +151,7 @@ root_type=ext4
 EOF
 
     if [ "$is_ssd" -eq 1 ]; then
-        echo 'luks_discard=yes' >> "$CONFIG_FILE"
+        echo 'luks_discard=yes' >> /mnt/etc/tinyramfs/config
     fi
 fi
 
