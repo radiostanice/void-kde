@@ -7,10 +7,6 @@
 # Available colors: black, red, green, yellow, blue, magenta, cyan, white
 # Available highlights: normal, bold, reverse, underline, dim, standout
 
-# Screen and Shadows
-color screen = white, black, normal
-color shadow = black, black, normal
-
 # Main Dialog Box
 color dialog = white, black, normal
 color title = cyan, black, bold
