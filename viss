@@ -23,8 +23,12 @@ drawDialog --msgbox "Welcome!\n\nThis installer is customized for a specific, ha
 
 # --- 1. DISK SELECTION ---
 diskConfig() {
-    local diskList
-    mapfile -t diskArray < <(lsblk -d -o NAME,SIZE -n -e7)
+    local diskArray=() name size
+    # Read disk name and size separately to form proper tag/item pairs for the dialog menu
+    while read -r name size; do
+        [ -n "$name" ] && diskArray+=("$name" "$size")
+    done < <(lsblk -d -o NAME,SIZE -n -e7)
+
     diskInput=$(drawDialogBack --no-cancel --title "Available Disks" --menu "Choose the disk to install Void Linux to (ALL DATA WILL BE WIPED):" 0 0 0 "${diskArray[@]}")
     ret=$?
     if [ $ret -eq 3 ]; then
@@ -57,7 +61,7 @@ userConfig() {
     # Hostname
     while :; do
         hostname=$(drawDialogBack --title "System Hostname" --inputbox \
-            "Enter your system hostname:\n(letters, digits, '-' and '_'; no spaces or dots)" 0 0 "${hostname:-user}")
+            "Enter your system hostname:\n(letters, digits, '-' and '_'; no spaces or dots)" 0 0 "${hostname:-localhost}")
         ret=$?
         if [ $ret -eq 1 ]; then exit 0
         elif [ $ret -eq 3 ]; then diskConfig; return; fi
@@ -65,7 +69,7 @@ userConfig() {
         if [[ "$hostname" =~ ^[a-zA-Z0-9]([a-zA-Z0-9_-]{0,62}[a-zA-Z0-9])?$ ]]; then
             break
         fi
-        drawDialog --title "Invalid Hostname" --msgbox "Invalid hostname: '${hostname:-<empty>'.\n\nUse 1-63 characters: letters, digits, '-' or '_',\nstarting and ending with a letter or digit.\nThe field is pre-filled with the default ('user')." 0 0
+        drawDialog --title "Invalid Hostname" --msgbox "Invalid hostname: '${hostname:-<empty>'.\n\nUse 1-63 characters: letters, digits, '-' or '_',\nstarting and ending with a letter or digit.\nThe field is pre-filled with the default ('localhost')." 0 0
     done
     timezoneConfig
 }
@@ -321,6 +325,7 @@ initrd=${initrd@Q}
 graphics=${graphics@Q}
 kernel=${kernel@Q}
 secureboot=${secureboot@Q}
+locale=${locale@Q}
 EOF
     
     . "$(pwd)"/setup/base
@@ -353,7 +358,7 @@ EOF
 
     # --- FINAL REBOOT DIALOG ---
     if drawDialog --title "Installation Complete" --yes-label "Reboot" --no-label "Exit" --yesno "Installation finished successfully.\n\nTotal installer runtime: ${SECONDS} seconds." 0 0 ; then
-        reboot now
+        reboot
     else
         exit 0
     fi
