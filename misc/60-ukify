@@ -12,7 +12,7 @@ INITRD="${ROOTDIR}/boot/initramfs-${VERSION}.img"
 [ -f "$INITRD" ] || { echo "60-ukify: missing $INITRD" >&2; exit 1; }
 mkdir -p "$(dirname "$OUTPUT")"
 
-CMDLINE="loglevel=4"
+CMDLINE="loglevel=3"
 [ -f "${ROOTDIR}/etc/kernel/cmdline" ] && CMDLINE=$(cat "${ROOTDIR}/etc/kernel/cmdline")
 
 ukify build \
