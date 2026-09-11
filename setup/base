@@ -90,9 +90,10 @@ else
 fi
 
 if [ -n "$KERN_PARAMS" ]; then
-    echo " $KERN_PARAMS" >> /mnt/etc/kernel/cmdline || die
+    # Safely append parameters, treating them strictly as text
+    printf " %s\n" "$KERN_PARAMS" >> /mnt/etc/kernel/cmdline || die
 else
-    echo "" >> /mnt/etc/kernel/cmdline || die
+    printf "\n" >> /mnt/etc/kernel/cmdline || die
 fi
 
 # --- LOCALE & HOSTNAME ---
