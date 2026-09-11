@@ -13,6 +13,8 @@ dependencies=("setup/base" "setup/desktop" "setup/disk" "setup/chroot" "misc/60-
 for i in "${dependencies[@]}"; do
     [ -e "$i" ] ||
         { commandFailure="$i appears to be missing. This could be because it is incorrectly named, or it does not exist." ; die ; }
+    bash -n "$i" 2>/dev/null ||
+        { commandFailure="Syntax error in $i (e.g. unclosed quote). Run 'bash -n $i' to find the exact line." ; die ; }
 done
 
 [ -e "/sys/firmware/efi" ] ||
