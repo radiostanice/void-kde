@@ -220,7 +220,6 @@ securebootConfig() {
 appsConfig() {
     local apps_list=(
         "dolphin" "KDE File Manager" on
-        "konsole" "KDE Terminal" on
         "kinfocenter" "KDE About this System page" on
         "octoxbps" "OctoXBPS package manager" on
         "ark" "KDE archive manager" on
