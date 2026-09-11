@@ -56,8 +56,8 @@ install kwin xorg-server-xwayland
 install elogind polkit-elogind dbus
 enableService polkitd
 
-# Plasma-specific integrations for audio and network system tray widgets
-install plasma-pa plasma-nm
+# Plasma-specific integrations for audio and network system tray widgets and the default sound theme
+install plasma-pa plasma-nm ocean-sound-theme
 
 # Basic XDG utilities
 install xdg-user-dirs xdg-utils 
@@ -70,7 +70,7 @@ system "mkdir -p /etc/xdg/autostart"
 
 # --- EXTRA PACKAGES SETUP ---
 if echo "$extra_packages" | grep -qw "kinfocenter"; then
-    install fwupd lm_sensors clinfo glxinfo Vulkan-Tools wayland-utils xdpyinfo mesa-demos
+    install aha fwupd lm_sensors clinfo glxinfo Vulkan-Tools wayland-utils xdpyinfo mesa-demos
 fi
 
 if echo "$extra_packages" | grep -qw "cups"; then
