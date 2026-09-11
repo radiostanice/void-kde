@@ -3,13 +3,14 @@
 
 echo "Running basic checks..."
 
-[ "$(id -u)" -ne 0 ] &&
-    echo -e "${RED}Please execute this script as root.${NC}" && exit 1
+if [ "$(id -u)" -ne 0 ]; then
+    echo -e "${RED}Please execute this script as root.${NC}"
+    exit 1
+fi
 
-# FIX: Removed all ZFS/BTRFS/LVM/xtools leftover file checks
 dependencies=("setup/base" "setup/desktop" "setup/disk" "setup/chroot" "misc/60-ukify" "misc/libviss")
 
-for i in ${dependencies[@]}; do
+for i in "${dependencies[@]}"; do
     [ -e "$i" ] ||
         { commandFailure="$i appears to be missing. This could be because it is incorrectly named, or it does not exist." ; die ; }
 done
@@ -21,7 +22,7 @@ done
     { commandFailure="This systems CPU architecture is not currently supported by this installer." ; die ; }
 
 echo "Finding out what libc is being used..."
-if ldd --version | grep GNU ; then
+if ldd --version 2>&1 | grep -q GNU ; then
     libc="glibc"
 else
     libc="musl"
@@ -37,7 +38,7 @@ commandFailure="Dependency installation has failed."
 xbps-install -Suy xbps || die
 xbps-install -Suy dialog || die
 
-dialog --create-rc ~/.dialogrc
+dialog --create-rc "$HOME/.dialogrc"
 
 logFile="/tmp/void-install-script.log"
 
