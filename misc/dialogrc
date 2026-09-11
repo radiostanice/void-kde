@@ -1,54 +1,54 @@
+
 # ~/.dialogrc
-# Dark mode theme for dialog
-# Black background, white text, cyan/blue accents, subtle 3D-ish borders.
+# Custom dark mode theme for dialog(1)
+# Uses standard ncurses/dialog color names:
+# BLACK RED GREEN YELLOW BLUE MAGENTA CYAN WHITE
 
-use_colors = ON
-use_shadow = ON
+use_colors = on
+use_shadow = off
 
-# Base screen/dialog colors
-screen_color = (WHITE,BLACK,OFF)
+# Global screen/dialog colors
+screen_color = (WHITE,BLACK,ON)
 shadow_color = (BLACK,BLACK,ON)
-dialog_color = (WHITE,BLACK,OFF)
-
-# Dialog borders/title
-border_color = (WHITE,BLACK,ON)
-border2_color = (CYAN,BLACK,OFF)
+dialog_color = (WHITE,BLACK,ON)
 title_color = (CYAN,BLACK,ON)
+border_color = (CYAN,BLACK,ON)
 
 # Buttons
 button_active_color = (BLACK,CYAN,ON)
-button_inactive_color = (WHITE,BLACK,OFF)
+button_inactive_color = (WHITE,BLACK,ON)
 button_key_active_color = (BLACK,CYAN,ON)
-button_key_inactive_color = (CYAN,BLACK,ON)
+button_key_inactive_color = (YELLOW,BLACK,ON)
 button_label_active_color = (BLACK,CYAN,ON)
-button_label_inactive_color = (WHITE,BLACK,OFF)
+button_label_inactive_color = (WHITE,BLACK,ON)
 
 # Input/search boxes
 inputbox_color = (WHITE,BLACK,ON)
-inputbox_border_color = (CYAN,BLACK,ON)
-inputbox_border2_color = (BLUE,BLACK,OFF)
 searchbox_color = (WHITE,BLACK,ON)
 searchbox_title_color = (CYAN,BLACK,ON)
-searchbox_border_color = (CYAN,BLACK,ON)
-position_indicator_color = (CYAN,BLACK,ON)
 
-# Menu list colors
-menubox_color = (WHITE,BLACK,OFF)
-menubox_border_color = (WHITE,BLACK,ON)
-menubox_border2_color = (CYAN,BLACK,OFF)
-item_color = (WHITE,BLACK,OFF)
-tag_color = (CYAN,BLACK,ON)
-tag_key_color = (CYAN,BLACK,ON)
+# Menus, lists, items
+menubox_color = (WHITE,BLACK,ON)
+menubox_border_color = (CYAN,BLACK,ON)
+item_color = (WHITE,BLACK,ON)
 item_selected_color = (BLACK,CYAN,ON)
+tag_color = (CYAN,BLACK,ON)
 tag_selected_color = (BLACK,CYAN,ON)
+tag_key_color = (YELLOW,BLACK,ON)
 tag_key_selected_color = (BLACK,CYAN,ON)
-
-# Checkboxes
-check_color = (CYAN,BLACK,ON)
+check_color = (WHITE,BLACK,ON)
 check_selected_color = (BLACK,CYAN,ON)
+uarrow_color = (GREEN,BLACK,ON)
+darrow_color = (GREEN,BLACK,ON)
 
-# Arrows / progress / help
-uarrow_color = (CYAN,BLACK,ON)
-darrow_color = (CYAN,BLACK,ON)
-gauge_color = (BLACK,CYAN,OFF)
-itemhelp_color = (WHITE,BLACK,OFF)
+# Help text
+item_help_color = (CYAN,BLACK,ON)
+
+# Forms
+form_active_text_color = (BLACK,CYAN,ON)
+form_text_color = (WHITE,BLACK,ON)
+form_item_readonly_color = (YELLOW,BLACK,ON)
+
+# Gauge/progress bar
+gauge_color = (BLACK,CYAN,ON)
+gauge_text_color = (WHITE,BLACK,ON)
