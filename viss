@@ -210,6 +210,7 @@ appsConfig() {
         "octoxbps" "OctoXBPS package manager" on
         "ark" "KDE archive manager" on
         "kate" "KDE advanced text editor" on
+        "oxygen" "KDE theme - Recommended" off
         "chromium" "Chromium web browser" off
         "firefox" "Firefox web browser" off
         "flatpak" "Flatpak package management" off
