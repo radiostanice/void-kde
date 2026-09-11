@@ -241,6 +241,15 @@ confirmLogout=false
 loginMode=emptySession
 EOF
 
+# 6. Disable spell check globally
+cat <<EOF > "$KDE_CONFIG_DIR/sonnetrc"
+[General]
+autodetectLanguage=false
+defaultLanguage=en
+skipRunTogether=false
+checkerEnabledByDefault=false
+EOF
+
 # Fix ownership
 chown -R "$username:$username" "$KDE_CONFIG_DIR" || die
 
