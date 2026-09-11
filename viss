@@ -217,10 +217,28 @@ appsConfig() {
         "blueman" "Bluetooth GUI manager" off
         "cups" "CUPS printing support" off
     )
+
+    # Define the core apps that are ON by default
+    local required_defaults=("dolphin" "konsole" "kinfocenter" "octoxbps" "ark" "kate")
+
     local selected=$(drawDialog --no-cancel --title "Additional Applications" --checklist "Select optional packages to install (Space to select, Enter to confirm):" 0 0 0 "${apps_list[@]}")
     extra_packages=$(echo "$selected" | tr -d '"')
 
- # Confirmation screen to verify selected packages
+    # Check for deselected default apps and warn the user
+    local missing_apps=()
+    for app in "${required_defaults[@]}"; do
+        # Check if the required app is NOT present in the user's selected string
+        if [[ ! "$extra_packages" == *"$app"* ]]; then
+            missing_apps+=("$app")
+        fi
+    done
+
+    # If the missing_apps array has at least 1 item, show the warning
+    if [ ${#missing_apps[@]} -gt 0 ]; then
+        drawDialog --title "WARNING: Missing Core Apps" --msgbox "You have disabled the following default applications:\n\n${missing_apps[*]}\n\nDisabling these core KDE apps might result in a broken or degraded desktop experience!" 0 0
+    fi
+
+    # Existing Confirmation screen to verify selected packages
     if [ -n "$extra_packages" ]; then
         drawDialog --title "Selected Packages" --msgbox "The following packages will be installed:\n\n$extra_packages" 0 0
     else
