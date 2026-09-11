@@ -73,6 +73,14 @@ if echo "$extra_packages" | grep -qw "kinfocenter"; then
     install aha fwupd lm_sensors clinfo glxinfo Vulkan-Tools wayland-utils xdpyinfo mesa-demos
 fi
 
+if echo "$extra_packages" | grep -qw "oxygen"; then
+    install oxygen-sounds
+fi
+
+if echo "$extra_packages" | grep -qw "chromium"; then
+    install chromium-qt6
+fi
+
 if echo "$extra_packages" | grep -qw "cups"; then
     enableService cupsd
 fi
