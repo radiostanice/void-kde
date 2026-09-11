@@ -34,10 +34,30 @@ diskConfig() {
 
 # --- 2. USER & HOSTNAME ---
 userConfig() {
-    username=$(drawDialog --no-cancel --title "Create User" --inputbox "Enter your username:" 0 0)
-    [ -z "$username" ] && username="user"
-    hostname=$(drawDialog --no-cancel --title "System Hostname" --inputbox "Enter your system hostname:" 0 0)
-    [ -z "$hostname" ] && hostname="voidlinux"
+    # Username: pre-filled default, validated, Cancel/ESC aborts
+    while :; do
+        if ! username=$(drawDialog --title "Create User" --inputbox \
+            "Enter your username:\n(lowercase letters, digits, '-' and '_';\nmust start with a letter or '_')" 0 0 "${username:-user}"); then
+            exit 0
+        fi
+        [ "$username" = "root" ] && username=""
+        if [[ "$username" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
+            break
+        fi
+        drawDialog --msgbox "Invalid username: '${username:-<empty>}''.\n\nThe field is pre-filled with a safe default ('user').\nPress OK on it to accept, or type a valid name:\n- starts with a lowercase letter or '_'\n- then lowercase letters, digits, '-' or '_'" 0 0
+    done
+
+    # Hostname: same idea (RFC 1123-ish, 1-63 chars)
+    while :; do
+        if ! hostname=$(drawDialog --title "System Hostname" --inputbox \
+            "Enter your system hostname:\n(letters, digits, '-' and '_'; no spaces or dots)" 0 0 "${hostname:-voidlinux}"); then
+            exit 0
+        fi
+        if [[ "$hostname" =~ ^[a-zA-Z0-9]([a-zA-Z0-9_-]{0,62}[a-zA-Z0-9])?$ ]]; then
+            break
+        fi
+        drawDialog --msgbox "Invalid hostname: '${hostname:-<empty>}''.\n\nUse 1-63 characters: letters, digits, '-' or '_',\nstarting and ending with a letter or digit.\nThe field is pre-filled with the default ('voidlinux')." 0 0
+    done
     timezoneConfig
 }
 
@@ -72,12 +92,15 @@ timezoneConfig() {
 
 # --- 4. DYNAMIC LOCALE ---
 localeConfig() {
-    local localeList=$(grep -F '.UTF-8' /etc/default/libc-locales | awk '{print $1}' | sed -e 's/^#//')
+    local localeList
+    localeList=$(grep -F '.UTF-8' /etc/default/libc-locales | awk '{print $1}' | sed -e 's/^#//' | sort -u)
     local tmp=()
+    local i
     for i in $localeList; do
-        tmp+=("$i" "$i")
+        tmp+=("$i" "")     # empty description -> single column, no repeated text
     done
-    local localeChoice=$(drawDialog --no-cancel --title "Locale Selection" --menu "Please choose your system locale." 0 0 0 "${tmp[@]}")
+    local localeChoice
+    localeChoice=$(drawDialog --no-cancel --title "Locale Selection" --menu "Please choose your system locale." 0 0 0 "${tmp[@]}")
     locale="LANG=$localeChoice"
     libclocale="$localeChoice UTF-8"
     repositoryConfig
