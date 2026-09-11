@@ -165,6 +165,38 @@ kernelConfig() {
     "linux-lts" "- Long Term Support kernel (recommended for stability)")
     ret=$?
     if [ $ret -eq 3 ]; then suConfig; return; fi
+    kernelParamsConfig
+}
+
+# --- 8.1 KERNEL SECURITY PRESETS ---
+kernelParamsConfig() {
+    preset=$(drawDialogBack --no-cancel --title "Kernel Hardening" --menu "Select a kernel security profile:" 0 0 0 \
+    "secure" "- Max Security (CPU mitigations, memory hardening, safe for boot hardened)" \
+    "default" "- Default (Good performance with baseline security)" \
+    "custom" "- Custom (Manually enter your own parameters)")
+    ret=$?
+    if [ $ret -eq 3 ]; then kernelConfig; return; fi
+
+    if [ "$preset" = "secure" ]; then
+        # Max Security parameters (safe for desktop, avoids aggressive lockdowns that break DKMS/initramfs rescue)
+        KERN_PARAMS="mitigations=auto,nosmt spectre_v2=on spec_store_bypass_disable=on l1tf=full,force pti=on init_on_alloc=1 init_on_free=1 slab_debug=FZP slab_nomerge randomize_kstack_offset=on vsyscall=none random.trust_cpu=off random.trust_bootloader=off"
+    elif [ "$preset" = "default" ]; then
+        # Default parameters (Baseline security with good performance)
+        KERN_PARAMS="mitigations=auto pti=on vsyscall=emulate init_on_alloc=1"
+    elif [ "$preset" = "custom" ]; then
+        while :; do
+            KERN_PARAMS=$(drawDialogBack --title "Custom Parameters" --inputbox \
+                "Enter custom kernel parameters (space-separated):\n(Leave empty to skip)" 0 0 "")
+            ret=$?
+            if [ $ret -eq 3 ]; then kernelParamsConfig; return; fi
+            if [ -z "${KERN_PARAMS// }" ]; then
+                KERN_PARAMS=""
+                break
+            fi
+            drawDialog --yesno "You entered:\n\n$KERN_PARAMS\n\nIs this correct?" 0 0
+            if [ $? -eq 0 ]; then break; fi
+        done
+    fi
     initrdConfig
 }
 
@@ -174,7 +206,7 @@ initrdConfig() {
     "dracut" "- Default, robust Void initramfs generator" \
     "tinyramfs" "- Small, fast POSIX Shell initramfs generator")
     ret=$?
-    if [ $ret -eq 3 ]; then kernelConfig; return; fi
+    if [ $ret -eq 3 ]; then kernelParamsConfig; return; fi
     gpuConfig
 }
 
@@ -268,6 +300,11 @@ confirm() {
     settings+="Encryption: $encryption\n"
     settings+="Bootloader: UKI (No GRUB)\n"
     settings+="Kernel: $kernel\n"
+    if [ -n "$KERN_PARAMS" ]; then
+        settings+="Kernel Params: $KERN_PARAMS\n"
+    else
+        settings+="Kernel Params: None\n"
+    fi
     settings+="Initramfs: $initrd\n"
     settings+="Desktop: KDE Plasma (Wayland only)\n"
     settings+="Audio: PipeWire\n"
