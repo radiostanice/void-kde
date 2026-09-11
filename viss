@@ -25,7 +25,11 @@ drawDialog --msgbox "Welcome!\n\nThis installer is customized for a specific, ha
 diskConfig() {
     local diskList
     mapfile -t diskArray < <(lsblk -d -o NAME,SIZE -n -e7)
-    if diskInput=$(drawDialog --no-cancel --title "Available Disks" --menu "Choose the disk to install Void Linux to (ALL DATA WILL BE WIPED):" 0 0 0 "${diskArray[@]}"); then
+    diskInput=$(drawDialogBack --no-cancel --title "Available Disks" --menu "Choose the disk to install Void Linux to (ALL DATA WILL BE WIPED):" 0 0 0 "${diskArray[@]}")
+    ret=$?
+    if [ $ret -eq 3 ]; then
+        exit 0
+    elif [ -n "$diskInput" ]; then
         diskInput="/dev/$diskInput"
     else
         exit 0
@@ -33,32 +37,35 @@ diskConfig() {
     userConfig
 }
 
-
 # --- 2. USER & HOSTNAME ---
 userConfig() {
-    # Username: pre-filled default, validated, Cancel/ESC aborts
+    # Username
     while :; do
-        if ! username=$(drawDialog --title "Create User" --inputbox \
-            "Enter your username:\n(lowercase letters, digits, '-' and '_';\nmust start with a letter or '_')" 0 0 "${username:-user}"); then
-            exit 0
-        fi
+        username=$(drawDialogBack --title "Create User" --inputbox \
+            "Enter your username:\n(lowercase letters, digits, '-' and '_';\nmust start with a letter or '_')" 0 0 "${username:-user}")
+        ret=$?
+        if [ $ret -eq 1 ]; then exit 0
+        elif [ $ret -eq 3 ]; then diskConfig; return; fi
+        
         [ "$username" = "root" ] && username=""
         if [[ "$username" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
             break
         fi
-        drawDialog --msgbox "Invalid username: '${username:-<empty>}''.\n\nThe field is pre-filled with a safe default ('user').\nPress OK on it to accept, or type a valid name:\n- starts with a lowercase letter or '_'\n- then lowercase letters, digits, '-' or '_'" 0 0
+        drawDialog --title "Invalid Username" --msgbox "Invalid username: '${username:-<empty>'.\n\nThe field is pre-filled with a safe default ('user').\nPress OK on it to accept, or type a valid name:\n- starts with a lowercase letter or '_'\n- then lowercase letters, digits, '-' or '_'" 0 0
     done
 
-    # Hostname: same idea (RFC 1123-ish, 1-63 chars)
+    # Hostname
     while :; do
-        if ! hostname=$(drawDialog --title "System Hostname" --inputbox \
-            "Enter your system hostname:\n(letters, digits, '-' and '_'; no spaces or dots)" 0 0 "${hostname:-user}"); then
-            exit 0
-        fi
+        hostname=$(drawDialogBack --title "System Hostname" --inputbox \
+            "Enter your system hostname:\n(letters, digits, '-' and '_'; no spaces or dots)" 0 0 "${hostname:-user}")
+        ret=$?
+        if [ $ret -eq 1 ]; then exit 0
+        elif [ $ret -eq 3 ]; then diskConfig; return; fi
+        
         if [[ "$hostname" =~ ^[a-zA-Z0-9]([a-zA-Z0-9_-]{0,62}[a-zA-Z0-9])?$ ]]; then
             break
         fi
-        drawDialog --msgbox "Invalid hostname: '${hostname:-<empty>}''.\n\nUse 1-63 characters: letters, digits, '-' or '_',\nstarting and ending with a letter or digit.\nThe field is pre-filled with the default ('user')." 0 0
+        drawDialog --title "Invalid Hostname" --msgbox "Invalid hostname: '${hostname:-<empty>'.\n\nUse 1-63 characters: letters, digits, '-' or '_',\nstarting and ending with a letter or digit.\nThe field is pre-filled with the default ('user')." 0 0
     done
     timezoneConfig
 }
@@ -70,16 +77,19 @@ timezoneConfig() {
     for a in "${areas[@]}"; do menu_args+=("$a" ""); done
 
     local area location
-    if area=$(drawDialog --no-cancel --title "Set Timezone" \
-            --menu "Select your region:" 0 0 0 "${menu_args[@]}"); then
+    area=$(drawDialogBack --no-cancel --title "Set Timezone" --menu "Select your region:" 0 0 0 "${menu_args[@]}")
+    ret=$?
+    if [ $ret -eq 3 ]; then userConfig; return; fi
 
+    if [ -n "$area" ]; then
         mapfile -t locations < <(find "/usr/share/zoneinfo/$area" -type f -printf '%P\n' 2>/dev/null | sort)
         local display_locations=("${locations[@]//_/ }")
-
         local loc_args=() l
         for l in "${display_locations[@]}"; do loc_args+=("$l" ""); done
-        location=$(drawDialog --no-cancel --title "Set Timezone" \
-                --menu "Select your location:" 0 0 0 "${loc_args[@]}")
+        
+        location=$(drawDialogBack --no-cancel --title "Set Timezone" --menu "Select your location:" 0 0 0 "${loc_args[@]}")
+        ret=$?
+        if [ $ret -eq 3 ]; then userConfig; return; fi
         location="${location// /_}"
     fi
 
@@ -93,80 +103,88 @@ timezoneConfig() {
 
 # --- 4. DYNAMIC LOCALE ---
 localeConfig() {
-    local localeList
+    local localeList tmp=() i localeChoice
     localeList=$(grep -F '.UTF-8' /etc/default/libc-locales | awk '{print $1}' | sed -e 's/^#//' | sort -u)
-    local tmp=()
-    local i
-    for i in $localeList; do
-        tmp+=("$i" "")     # empty description -> single column, no repeated text
-    done
-    local localeChoice
-    localeChoice=$(drawDialog --no-cancel --title "Locale Selection" --menu "Please choose your system locale." 0 0 0 "${tmp[@]}")
+    for i in $localeList; do tmp+=("$i" ""); done
+    
+    localeChoice=$(drawDialogBack --no-cancel --title "Locale Selection" --menu "Please choose your system locale." 0 0 0 "${tmp[@]}")
+    ret=$?
+    if [ $ret -eq 3 ]; then timezoneConfig; return; fi
+    
     locale="LANG=$localeChoice"
     libclocale="$localeChoice UTF-8"
     repositoryConfig
 }
 
-# --- 5. REPOSITORY MIRROR (Restored xmirror) ---
+# --- 5. REPOSITORY MIRROR ---
 repositoryConfig() {
-    if drawDialog --title "Repository Mirror" --defaultno --yesno "Would you like to set a custom repo mirror?\n\nIf 'No', the Fastly CDN repo will be used." 0 0 ; then
+    drawDialogBack --title "Repository Mirror" --defaultno --yesno "Would you like to set a custom repo mirror?\n\nIf 'No', the Fastly CDN repo will be used." 0 0
+    ret=$?
+    if [ $ret -eq 3 ]; then localeConfig; return
+    elif [ $ret -eq 0 ]; then
         xmirror
         repository=$(grep -h '^repository=' /etc/xbps.d/*-repository-main.conf 2>/dev/null | head -n 1 | cut -d= -f2 | tr -d '[:space:]')
     else
-        # Use Fastly CDN as default instead of repo-default
         [ "$libc" = "glibc" ] && repository="https://repo-fastly.voidlinux.org/current"
         [ "$libc" = "musl" ] && repository="https://repo-fastly.voidlinux.org/current/musl"
     fi
     
     [ "$libc" = "glibc" ] && ARCH="x86_64"
     [ "$libc" = "musl" ] && ARCH="x86_64-musl"
-    
     encryptionConfig
 }
 
 # --- 6. ENCRYPTION CHOICE ---
 encryptionConfig() {
-    if drawDialog --title "Disk Encryption" --yesno "Do you want to encrypt the root partition with LUKS2 (argon2id)?\n\nIf 'No', the partition will be unencrypted." 0 0 ; then
-        encryption="Yes"
-    else
-        encryption="No"
-    fi
+    drawDialogBack --title "Disk Encryption" --yesno "Do you want to encrypt the root partition with LUKS2 (argon2id)?\n\nIf 'No', the partition will be unencrypted." 0 0
+    ret=$?
+    if [ $ret -eq 3 ]; then repositoryConfig; return
+    elif [ $ret -eq 0 ]; then encryption="Yes"
+    else encryption="No"; fi
     suConfig
 }
 
 # --- 7. PRIVILEGE ESCALATION CHOICE ---
 suConfig() {
-    su=$(drawDialog --no-cancel --title "Privilege Escalation" --menu "Choose your privilege escalation tool:" 0 0 0 \
+    su=$(drawDialogBack --no-cancel --title "Privilege Escalation" --menu "Choose your privilege escalation tool:" 0 0 0 \
     "sudo" "- Standard, widely used privilege escalation" \
     "doas" "- Lightweight, secure alternative (OpenBSD style)")
+    ret=$?
+    if [ $ret -eq 3 ]; then encryptionConfig; return; fi
     kernelConfig
 }
 
 # --- 8. KERNEL SELECTION ---
 kernelConfig() {
-    kernel=$(drawDialog --no-cancel --title "Kernel Selection" --menu "Select your Linux kernel:" 0 0 0 \
+    kernel=$(drawDialogBack --no-cancel --title "Kernel Selection" --menu "Select your Linux kernel:" 0 0 0 \
     "linux" "- Standard latest stable kernel" \
     "linux-lts" "- Long Term Support kernel (recommended for stability)")
+    ret=$?
+    if [ $ret -eq 3 ]; then suConfig; return; fi
     initrdConfig
 }
 
 # --- 9. INITRAMFS CHOICE ---
 initrdConfig() {
-    initrd=$(drawDialog --no-cancel --title "Initramfs Choice" --menu "Select your initramfs generator:" 0 0 0 \
+    initrd=$(drawDialogBack --no-cancel --title "Initramfs Choice" --menu "Select your initramfs generator:" 0 0 0 \
     "dracut" "- Default, robust Void initramfs generator" \
     "tinyramfs" "- Small, fast POSIX Shell initramfs generator")
+    ret=$?
+    if [ $ret -eq 3 ]; then kernelConfig; return; fi
     gpuConfig
 }
 
 # --- 10. GPU SELECTION ---
 gpuConfig() {
-    graphics=$(drawDialog --no-cancel --title "GPU Driver Selection" --menu "Select your GPU driver:\n(Note: Auto-detect can be inaccurate in VMs)" 0 0 0 \
+    graphics=$(drawDialogBack --no-cancel --title "GPU Driver Selection" --menu "Select your GPU driver:\n(Note: Auto-detect can be inaccurate in VMs)" 0 0 0 \
     "auto" "- Auto-detect (lspci)" \
     "amd" "- AMD / Radeon" \
     "intel" "- Intel" \
     "nvidia" "- NVIDIA (Proprietary)" \
     "nvidia-nouveau" "- NVIDIA (Open-source Nouveau)" \
     "none" "- Generic / VM Display (virtio, qxl, vmware)")
+    ret=$?
+    if [ $ret -eq 3 ]; then initrdConfig; return; fi
     
     if [ "$graphics" = "auto" ]; then
         local gpu_info
@@ -186,11 +204,11 @@ gpuConfig() {
 
 # --- 11. SECURE BOOT ---
 securebootConfig() {
-    if drawDialog --title "Secure Boot" --yesno "Do you want to generate Secure Boot keys and sign the kernel?\n\nThis installs 'sbctl' and adds a kernel hook to automatically sign kernels on updates." 0 0 ; then
-        secureboot="Yes"
-    else
-        secureboot="No"
-    fi
+    drawDialogBack --title "Secure Boot" --yesno "Do you want to generate Secure Boot keys and sign the kernel?\n\nThis installs 'sbctl' and adds a kernel hook to automatically sign kernels on updates." 0 0
+    ret=$?
+    if [ $ret -eq 3 ]; then gpuConfig; return
+    elif [ $ret -eq 0 ]; then secureboot="Yes"
+    else secureboot="No"; fi
     appsConfig
 }
 
@@ -213,34 +231,30 @@ appsConfig() {
         "cups" "CUPS printing support" off
     )
 
-    # Define the core apps that are ON by default
     local required_defaults=("dolphin" "konsole" "kinfocenter" "octoxbps" "ark" "kate")
+    local selected missing_apps=() app
 
-    local selected
-    selected=$(drawDialog --no-cancel --title "Additional Applications" --checklist "Select optional packages to install (Space to select, Enter to confirm):" 0 0 0 "${apps_list[@]}")
+    selected=$(drawDialogBack --no-cancel --title "Additional Applications" --checklist "Select optional packages to install (Space to select, Enter to confirm):" 0 0 0 "${apps_list[@]}")
+    ret=$?
+    if [ $ret -eq 3 ]; then securebootConfig; return; fi
+    
     extra_packages=$(echo "$selected" | tr -d '"')
 
-    # Check for deselected default apps and warn the user
-    local missing_apps=()
     for app in "${required_defaults[@]}"; do
-        # Check if the required app is NOT present in the user's selected string
         if [[ ! "$extra_packages" == *"$app"* ]]; then
             missing_apps+=("$app")
         fi
     done
 
-    # If the missing_apps array has at least 1 item, show the warning
     if [ ${#missing_apps[@]} -gt 0 ]; then
         drawDialog --title "WARNING: Missing Core Apps" --msgbox "You have disabled the following default applications:\n\n${missing_apps[*]}\n\nDisabling these core KDE apps might result in a broken or degraded desktop experience!" 0 0
     fi
 
-    # Existing Confirmation screen to verify selected packages
     if [ -n "$extra_packages" ]; then
         drawDialog --title "Selected Packages" --msgbox "The following packages will be installed:\n\n$extra_packages" 0 0
     else
         drawDialog --title "Selected Packages" --msgbox "No additional packages were selected." 0 0
     fi
-
     confirm
 }
 
@@ -265,11 +279,11 @@ confirm() {
     settings+="Secure Boot: $secureboot\n"
     [ -n "$extra_packages" ] && settings+="Extra Apps: $extra_packages\n"
     
-    if drawDialog --yes-label "Install" --no-label "Exit" --title "Installation Overview" --yesno "Selecting 'Install' will DESTROY ALL DATA on $diskInput and proceed with these options:\n\n$settings" 0 0 ; then
-        _install
-    else
-        exit 0
-    fi
+    drawDialogBack --yes-label "Install" --no-label "Exit" --title "Installation Overview" --yesno "Selecting 'Install' will DESTROY ALL DATA on $diskInput and proceed with these options:\n\n$settings" 0 0
+    ret=$?
+    if [ $ret -eq 3 ]; then appsConfig; return
+    elif [ $ret -eq 0 ]; then _install
+    else exit 0; fi
 }
 
 # --- INSTALLATION EXECUTION ---
