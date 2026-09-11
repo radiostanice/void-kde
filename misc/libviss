@@ -60,6 +60,10 @@ drawDialog() {
            --backtitle "Void Linux Custom Installer" "$@"
 }
 
+drawDialogBack() {
+    dialog --stdout --no-mouse --backtitle "Void Linux Custom Installer" --extra-button --extra-label "Back" "$@"
+}
+
 install() {
     xbps-install -Sy -R "$repository" -r /mnt "$@" || die "Failed to install package(s): $*"
 }
