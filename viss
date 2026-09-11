@@ -170,29 +170,36 @@ kernelConfig() {
 
 # --- 8.1 KERNEL SECURITY PRESETS ---
 kernelParamsConfig() {
+    # Define strings for reuse
+    local KERN_PARAMS_DEFAULT="mitigations=auto pti=on vsyscall=emulate init_on_alloc=1"
+    local KERN_PARAMS_SECURE="mitigations=auto,nosmt spectre_v2=on spec_store_bypass_disable=on l1tf=full,force pti=on init_on_alloc=1 init_on_free=1 slub_debug=FZP slab_nomerge randomize_kstack_offset=on vsyscall=none random.trust_cpu=off random.trust_bootloader=off"
+
+    # 1. "default" is now the first option in the menu
     preset=$(drawDialogBack --no-cancel --title "Kernel Hardening" --menu "Select a kernel security profile:" 0 0 0 \
-    "secure" "- Max Security (CPU mitigations, memory hardening, safe for boot hardened)" \
     "default" "- Default (Good performance with baseline security)" \
-    "custom" "- Custom (Manually enter your own parameters)")
+    "secure" "- Max Security (CPU mitigations, memory hardening, safe for boot hardened)" \
+    "custom" "- Custom (Edit the default parameters manually)")
     ret=$?
     if [ $ret -eq 3 ]; then kernelConfig; return; fi
 
-    if [ "$preset" = "secure" ]; then
-        # Max Security parameters (safe for desktop, avoids aggressive lockdowns that break DKMS/initramfs rescue)
-        KERN_PARAMS="mitigations=auto,nosmt spectre_v2=on spec_store_bypass_disable=on l1tf=full,force pti=on init_on_alloc=1 init_on_free=1 slub_debug slab_nomerge randomize_kstack_offset=on vsyscall=none random.trust_cpu=off random.trust_bootloader=off"
-    elif [ "$preset" = "default" ]; then
-        # Default parameters (Baseline security with good performance)
-        KERN_PARAMS="mitigations=auto pti=on vsyscall=emulate init_on_alloc=1"
+    if [ "$preset" = "default" ]; then
+        KERN_PARAMS="$KERN_PARAMS_DEFAULT"
+    elif [ "$preset" = "secure" ]; then
+        KERN_PARAMS="$KERN_PARAMS_SECURE"
     elif [ "$preset" = "custom" ]; then
         while :; do
+            # 2. Pre-populate the input box with the DEFAULT string
             KERN_PARAMS=$(drawDialogBack --title "Custom Parameters" --inputbox \
-                "Enter custom kernel parameters (space-separated):\n(Leave empty to skip)" 0 0 "")
+                "Enter custom kernel parameters (space-separated):\n(Leave empty to skip)" 0 0 "$KERN_PARAMS_DEFAULT")
             ret=$?
             if [ $ret -eq 3 ]; then kernelParamsConfig; return; fi
+            
+            # If user leaves it blank/empty
             if [ -z "${KERN_PARAMS// }" ]; then
                 KERN_PARAMS=""
                 break
             fi
+            
             drawDialog --yesno "You entered:\n\n$KERN_PARAMS\n\nIs this correct?" 0 0
             if [ $? -eq 0 ]; then break; fi
         done
