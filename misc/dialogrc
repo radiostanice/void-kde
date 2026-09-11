@@ -1,52 +1,54 @@
+# ~/.dialogrc
+# Dark mode theme for dialog
+# Black background, white text, cyan/blue accents, subtle 3D-ish borders.
+
 use_colors = ON
 use_shadow = ON
 
-# Base colors (Deep dark background)
+# Base screen/dialog colors
 screen_color = (WHITE,BLACK,OFF)
-shadow_color = (BLACK,BLACK,OFF)
+shadow_color = (BLACK,BLACK,ON)
 dialog_color = (WHITE,BLACK,OFF)
 
-# Borders (White for outer 3D edge, Cyan for inner interactive elements)
-border_color = (WHITE,BLACK,OFF)
+# Dialog borders/title
+border_color = (WHITE,BLACK,ON)
 border2_color = (CYAN,BLACK,OFF)
-title_color = (CYAN,BLACK,bold)
+title_color = (CYAN,BLACK,ON)
 
-# Buttons (Active is solid white to look "pressed", inactive is subtle)
-button_active_color = (BLACK,WHITE,OFF)
-button_inactive_color = (WHITE,BLACK,bold)
-button_key_active_color = (CYAN,WHITE,bold)
-button_key_inactive_color = (CYAN,BLACK,bold)
-button_label_active_color = (BLACK,WHITE,OFF)
+# Buttons
+button_active_color = (BLACK,CYAN,ON)
+button_inactive_color = (WHITE,BLACK,OFF)
+button_key_active_color = (BLACK,CYAN,ON)
+button_key_inactive_color = (CYAN,BLACK,ON)
+button_label_active_color = (BLACK,CYAN,ON)
 button_label_inactive_color = (WHITE,BLACK,OFF)
 
-# Input boxes (Cyan borders to stand out from the main dialog)
-inputbox_color = (WHITE,BLACK,OFF)
-inputbox_border_color = (CYAN,BLACK,OFF)
-inputbox_border2_color = (CYAN,BLACK,OFF)
-searchbox_color = (WHITE,BLACK,OFF)
-searchbox_title_color = (CYAN,BLACK,bold)
-searchbox_border_color = (CYAN,BLACK,OFF)
-position_indicator_color = (CYAN,BLACK,bold)
+# Input/search boxes
+inputbox_color = (WHITE,BLACK,ON)
+inputbox_border_color = (CYAN,BLACK,ON)
+inputbox_border2_color = (BLUE,BLACK,OFF)
+searchbox_color = (WHITE,BLACK,ON)
+searchbox_title_color = (CYAN,BLACK,ON)
+searchbox_border_color = (CYAN,BLACK,ON)
+position_indicator_color = (CYAN,BLACK,ON)
 
-# Menus (White outer border, Cyan inner border for depth)
+# Menu list colors
 menubox_color = (WHITE,BLACK,OFF)
-menubox_border_color = (WHITE,BLACK,OFF)
+menubox_border_color = (WHITE,BLACK,ON)
 menubox_border2_color = (CYAN,BLACK,OFF)
 item_color = (WHITE,BLACK,OFF)
-tag_color = (CYAN,BLACK,bold)
-tag_key_color = (CYAN,BLACK,bold)
-
-# Selected items (Cyan background for a sleek dark-mode highlight)
-item_selected_color = (BLACK,CYAN,OFF)
-tag_selected_color = (BLACK,CYAN,OFF)
-tag_key_selected_color = (BLACK,CYAN,bold)
+tag_color = (CYAN,BLACK,ON)
+tag_key_color = (CYAN,BLACK,ON)
+item_selected_color = (BLACK,CYAN,ON)
+tag_selected_color = (BLACK,CYAN,ON)
+tag_key_selected_color = (BLACK,CYAN,ON)
 
 # Checkboxes
-check_color = (CYAN,BLACK,OFF)
-check_selected_color = (BLACK,CYAN,OFF)
+check_color = (CYAN,BLACK,ON)
+check_selected_color = (BLACK,CYAN,ON)
 
-# Arrows and Gauges
-uarrow_color = (CYAN,BLACK,OFF)
-darrow_color = (CYAN,BLACK,OFF)
+# Arrows / progress / help
+uarrow_color = (CYAN,BLACK,ON)
+darrow_color = (CYAN,BLACK,ON)
 gauge_color = (BLACK,CYAN,OFF)
 itemhelp_color = (WHITE,BLACK,OFF)
