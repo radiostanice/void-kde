@@ -49,7 +49,7 @@ die() {
 }
 
 drawDialog() {
-    dialog --stdout --no-shadow --cancel-label "Skip" --no-mouse \
+    dialog --no-shadow --stdout --no-mouse \
            --backtitle "Void Linux Custom Installer" "$@"
 }
 
