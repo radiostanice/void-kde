@@ -3,8 +3,6 @@
 . "/tmp/libviss" || { echo "/tmp/libviss not found."; exit 1; }
 . "/tmp/installerOptions" || { commandFailure="Sourcing installer options failed."; die; }
 
-set -x
-
 exitFunction () {
     xbps-reconfigure -fa || { commandFailure="xbps-reconfigure failed."; die; }
 
