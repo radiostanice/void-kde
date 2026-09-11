@@ -125,6 +125,7 @@ fi
 if [ "$initrd" = "tinyramfs" ]; then
     commandFailure="Configuring tinyramfs has failed."
     mkdir -p /mnt/etc/tinyramfs || die
+    CONFIG_FILE="/mnt/etc/tinyramfs/config"
     
     # Detect if disk is an SSD (to enable luks_discard)
     is_ssd=0
@@ -139,19 +140,20 @@ if [ "$initrd" = "tinyramfs" ]; then
         luks_uuid=$(blkid -o value -s UUID "$root")
         [ -n "$luks_uuid" ] || die "Failed to get LUKS UUID for $root."
 
-        cat <<EOF > /mnt/etc/tinyramfs/config
+        # Generate config with LUKS support
+        cat <<EOF > "$CONFIG_FILE"
 hooks="eudev,luks"
 luks_root=UUID=$luks_uuid
 luks_name=void_root
 root=/dev/mapper/void_root
 root_type=ext4
 EOF
-
         if [ "$is_ssd" -eq 1 ]; then
-            echo 'luks_discard=yes' >> /mnt/etc/tinyramfs/config
+            echo 'luks_discard=yes' >> "$CONFIG_FILE"
         fi
     else
-        cat <<EOF > /mnt/etc/tinyramfs/config
+        # Fallback for unencrypted tinyramfs install
+        cat <<EOF > "$CONFIG_FILE"
 hooks="eudev"
 root=UUID=$root_uuid
 root_type=ext4
