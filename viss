@@ -19,8 +19,8 @@ title_color = (YELLOW,BLACK,ON)
 border_color = (WHITE,BLACK,OFF)
 button_active_color = (BLACK,GREEN,OFF)
 button_inactive_color = (WHITE,BLACK,OFF)
+button_key_inactive_color = (YELLOW,BLACK,ON)
 button_key_active_color = (BLACK,GREEN,OFF)
-button_key_inactive_color = (WHITE,BLACK,OFF)
 button_label_active_color = (BLACK,GREEN,OFF)
 button_label_inactive_color = (WHITE,BLACK,OFF)
 inputbox_color = (WHITE,BLACK,OFF)
@@ -33,10 +33,10 @@ menubox_color = (WHITE,BLACK,OFF)
 menubox_border_color = (WHITE,BLACK,OFF)
 item_color = (WHITE,BLACK,OFF)
 item_selected_color = (BLACK,GREEN,OFF)
-tag_color = (YELLOW,BLACK,ON)
-tag_selected_color = (BLACK,GREEN,OFF)
+tag_color = (WHITE,BLACK,OFF)
 tag_key_color = (YELLOW,BLACK,ON)
-tag_key_selected_color = (BLACK,GREEN,OFF)
+tag_selected_color = (BLACK,GREEN,OFF)
+tag_key_selected_color = (WHITE,GREEN,ON)
 EOF
 
 . "$(pwd)/misc/libviss" || { echo "$(pwd)/misc/libviss not found. Cannot continue."; exit 1; }
@@ -58,7 +58,7 @@ drawDialog --msgbox "Welcome!\n\nThis installer is customized for a specific, ha
 # --- 1. DISK SELECTION ---
 diskConfig() {
     local diskList=$(lsblk -d -o NAME,SIZE -n -e7)
-    if diskInput=$(drawDialog --title "Available Disks" --menu "Choose the disk to install Void Linux to (ALL DATA WILL BE WIPED):" 0 0 0 $diskList); then
+    if diskInput=$(drawDialog --no-cancel --title "Available Disks" --menu "Choose the disk to install Void Linux to (ALL DATA WILL BE WIPED):" 0 0 0 $diskList); then
         diskInput="/dev/$diskInput"
     else
         exit 0
@@ -68,9 +68,9 @@ diskConfig() {
 
 # --- 2. USER & HOSTNAME ---
 userConfig() {
-    username=$(drawDialog --title "Create User" --inputbox "Enter your username:" 0 0)
+    username=$(drawDialog --no-cancel --title "Create User" --inputbox "Enter your username:" 0 0)
     [ -z "$username" ] && username="user"
-    hostname=$(drawDialog --title "System Hostname" --inputbox "Enter your system hostname:" 0 0)
+    hostname=$(drawDialog --no-cancel --title "System Hostname" --inputbox "Enter your system hostname:" 0 0)
     [ -z "$hostname" ] && hostname="voidlinux"
     timezoneConfig
 }
