@@ -87,7 +87,7 @@ fi
 
 # --- AUDIO SERVER ---
 commandFailure="Audio server installation has failed."
-install pipewire wireplumber alsa-pipewire pipewire-pulse
+install pipewire wireplumber alsa-pipewire
 
 # ALSA configuration for pipewire
 system "mkdir -p /etc/alsa/conf.d"
