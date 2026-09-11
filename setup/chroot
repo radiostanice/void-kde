@@ -193,9 +193,11 @@ EOF
     chown "$username":"$username" /home/"$username"/.bash_profile
     chmod 644 /home/"$username"/.bash_profile
 
-# TTY1 Autologin 
-mkdir -p /etc/sv/agetty-tty1
-echo "GETTY_ARGS=\"--noclear --autologin $username\"" > /etc/sv/agetty-tty1/conf
+    # TTY1 Autologin 
+    if [ "$encryption" = "Yes" ]; then
+        mkdir -p /etc/sv/agetty-tty1
+        echo "GETTY_ARGS=\"--noclear --autologin $username\"" > /etc/sv/agetty-tty1/conf
+    fi
 
     clear; rootPassword
 fi
