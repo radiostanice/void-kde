@@ -41,9 +41,6 @@ check_selected_color = (BLACK,CYAN,ON)
 uarrow_color = (GREEN,BLACK,ON)
 darrow_color = (GREEN,BLACK,ON)
 
-# Help text
-item_help_color = (CYAN,BLACK,ON)
-
 # Forms
 form_active_text_color = (BLACK,CYAN,ON)
 form_text_color = (WHITE,BLACK,ON)
