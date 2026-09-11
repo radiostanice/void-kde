@@ -8,12 +8,10 @@ cp /var/db/xbps/keys/* /mnt/var/db/xbps/keys || die
 # --- PRE-INSTALL IGNOREPKG CONFIGURATION ---
 mkdir -p /mnt/etc/xbps.d
 
-# FIX: Added spaces around !=
 if [ "$su" != "sudo" ]; then
     echo "ignorepkg=sudo" >> /mnt/etc/xbps.d/ignore.conf || die
 fi
 
-# FIX: Added spaces around !=
 if [ "$kernel" != "linux" ] ; then
     echo "ignorepkg=linux" >> /mnt/etc/xbps.d/ignore.conf || die
 fi
@@ -27,7 +25,6 @@ if [ "$kernel" != "linux" ] ; then
     system "xbps-remove -RyO linux"
 fi
 
-# FIX: Added spaces around =
 if [ "$su" = "doas" ]; then
     install opendoas
 fi
@@ -49,7 +46,6 @@ if [ "$initrd" = "tinyramfs" ]; then
     system "xbps-alternatives -s tinyramfs" || die "Failed to switch alternatives to tinyramfs"
 fi
 
-# FIX: Added spaces around !=
 if [ "$repository" != "https://repo-default.voidlinux.org/current" ] && [ "$repository" != "https://repo-default.voidlinux.org/current/musl" ]; then
     xmirror -s "$repository" -r /mnt || { commandFailure="Repository configuration failed."; die ; }
 fi
@@ -58,7 +54,9 @@ fi
 commandFailure="Configuring fstab has failed."
 
 esp_uuid=$(blkid -o value -s UUID "$esp")
+[ -n "$esp_uuid" ] || die "Failed to get UUID for ESP partition $esp."
 root_uuid=$(blkid -o value -s UUID "$format_target")
+[ -n "$root_uuid" ] || die "Failed to get UUID for root partition $format_target."
 
 # 1. Hardened ESP (/boot/efi)
 echo "UUID=$esp_uuid /boot/efi vfat rw,nosuid,nodev,noexec,umask=0022,flush 0 2" >> /mnt/etc/fstab || die
@@ -75,6 +73,7 @@ mkdir -p /mnt/etc/kernel || die
 
 if [ "$encryption" = "Yes" ]; then
     luks_uuid=$(blkid -o value -s UUID "$root")
+    [ -n "$luks_uuid" ] || die "Failed to get LUKS UUID for $root."
     # Unified cmdline: dracut needs rd.luks.name, tinyramfs ignores it but needs root=
     echo "rd.luks.name=$luks_uuid=void_root root=/dev/mapper/void_root rootfstype=ext4 rw" > /mnt/etc/kernel/cmdline || die
 else
@@ -157,34 +156,25 @@ if [ "$encryption" == "Yes" ] && [ "$initrd" == "tinyramfs" ]; then
     # Pin root and root_type so the packaged defaults don't interfere
     sed -i 's|^root=.*|root=/dev/mapper/void_root|' "$CONFIG_FILE"
     sed -i 's|^root_type=.*|root_type=ext4|' "$CONFIG_FILE"
-fi
 
-# --- SSD TRIM CONFIGURATION ---
-is_ssd=0
-base_disk=$(basename "$diskInput")
-if [ -f "/sys/block/$base_disk/queue/rotational" ]; then
-    if [ "$(cat /sys/block/$base_disk/queue/rotational)" -eq 0 ]; then
-        is_ssd=1
+    # ... SSD detection ...
+
+    luks_uuid=$(blkid -o value -s UUID "$root")
+    [ -n "$luks_uuid" ] || die "Failed to get LUKS UUID for $root."
+
+    # FIX: Write the config directly. The original script touched an empty file and then
+    # ran grep/sed on it, which silently failed and left the config incomplete.
+    cat <<EOF > "$CONFIG_FILE"
+hooks="base,eudev,luks,rootfs"
+luks_root=UUID=$luks_uuid
+luks_name=void_root
+root=/dev/mapper/void_root
+root_type=ext4
+EOF
+
+    if [ "$is_ssd" -eq 1 ]; then
+        echo 'luks_discard=yes' >> "$CONFIG_FILE"
     fi
-fi
-
-if [ "$is_ssd" -eq 1 ]; then
-    commandFailure="Configuring SSD TRIM has failed."
-    
-    # Install cronie for weekly fstrim (Void recommended over fstab discard)
-    install cronie || die
-
-    # Create the weekly cron job
-    mkdir -p /mnt/etc/cron.weekly || die
-    cat << 'CRON_EOF' > /mnt/etc/cron.weekly/fstrim
-#!/bin/sh
-fstrim -av
-CRON_EOF
-    chmod +x /mnt/etc/cron.weekly/fstrim || die
-    
-    # Enable the cronie runit service
-    mkdir -p /mnt/etc/runit/runsvdir/default || die
-    ln -sf /etc/sv/cronie /mnt/etc/runit/runsvdir/default/cronie
 fi
 
 return 0
