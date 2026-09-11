@@ -23,14 +23,16 @@ drawDialog --msgbox "Welcome!\n\nThis installer is customized for a specific, ha
 
 # --- 1. DISK SELECTION ---
 diskConfig() {
-    local diskList=$(lsblk -d -o NAME,SIZE -n -e7)
-    if diskInput=$(drawDialog --no-cancel --title "Available Disks" --menu "Choose the disk to install Void Linux to (ALL DATA WILL BE WIPED):" 0 0 0 $diskList); then
+    local diskList
+    mapfile -t diskArray < <(lsblk -d -o NAME,SIZE -n -e7)
+    if diskInput=$(drawDialog --no-cancel --title "Available Disks" --menu "Choose the disk to install Void Linux to (ALL DATA WILL BE WIPED):" 0 0 0 "${diskArray[@]}"); then
         diskInput="/dev/$diskInput"
     else
         exit 0
     fi
     userConfig
 }
+
 
 # --- 2. USER & HOSTNAME ---
 userConfig() {
@@ -64,7 +66,6 @@ userConfig() {
 # --- 3. DYNAMIC TIMEZONE ---
 timezoneConfig() {
     local areas=(Africa America Antarctica Arctic Asia Atlantic Australia Europe Indian Pacific)
-
     local menu_args=() a
     for a in "${areas[@]}"; do menu_args+=("$a" ""); done
 
@@ -215,7 +216,8 @@ appsConfig() {
     # Define the core apps that are ON by default
     local required_defaults=("dolphin" "konsole" "kinfocenter" "octoxbps" "ark" "kate")
 
-    local selected=$(drawDialog --no-cancel --title "Additional Applications" --checklist "Select optional packages to install (Space to select, Enter to confirm):" 0 0 0 "${apps_list[@]}")
+    local selected
+    selected=$(drawDialog --no-cancel --title "Additional Applications" --checklist "Select optional packages to install (Space to select, Enter to confirm):" 0 0 0 "${apps_list[@]}")
     extra_packages=$(echo "$selected" | tr -d '"')
 
     # Check for deselected default apps and warn the user
@@ -293,18 +295,18 @@ _install() {
     
     # Safe heredoc prevents word-splitting issues with variables
     cat <<EOF > /mnt/tmp/installerOptions
-bootloader='$bootloader'
-su='$su'
-timezone='$timezone'
-encryption='$encryption'
-diskInput='$diskInput'
-username='$username'
-desktop='$desktop'
-root='$root'
-initrd='$initrd'
-graphics='$graphics'
-kernel='$kernel'
-secureboot='$secureboot'
+bootloader=${bootloader@Q}
+su=${su@Q}
+timezone=${timezone@Q}
+encryption=${encryption@Q}
+diskInput=${diskInput@Q}
+username=${username@Q}
+desktop=${desktop@Q}
+root=${root@Q}
+initrd=${initrd@Q}
+graphics=${graphics@Q}
+kernel=${kernel@Q}
+secureboot=${secureboot@Q}
 EOF
     
     . "$(pwd)"/setup/base
