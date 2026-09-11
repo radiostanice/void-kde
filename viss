@@ -52,13 +52,13 @@ userConfig() {
     # Hostname: same idea (RFC 1123-ish, 1-63 chars)
     while :; do
         if ! hostname=$(drawDialog --title "System Hostname" --inputbox \
-            "Enter your system hostname:\n(letters, digits, '-' and '_'; no spaces or dots)" 0 0 "${hostname:-voidlinux}"); then
+            "Enter your system hostname:\n(letters, digits, '-' and '_'; no spaces or dots)" 0 0 "${hostname:-user}"); then
             exit 0
         fi
         if [[ "$hostname" =~ ^[a-zA-Z0-9]([a-zA-Z0-9_-]{0,62}[a-zA-Z0-9])?$ ]]; then
             break
         fi
-        drawDialog --msgbox "Invalid hostname: '${hostname:-<empty>}''.\n\nUse 1-63 characters: letters, digits, '-' or '_',\nstarting and ending with a letter or digit.\nThe field is pre-filled with the default ('voidlinux')." 0 0
+        drawDialog --msgbox "Invalid hostname: '${hostname:-<empty>}''.\n\nUse 1-63 characters: letters, digits, '-' or '_',\nstarting and ending with a letter or digit.\nThe field is pre-filled with the default ('user')." 0 0
     done
     timezoneConfig
 }
