@@ -37,8 +37,6 @@ tag_color = (YELLOW,BLACK,ON)
 tag_selected_color = (BLACK,WHITE,ON)
 tag_key_color = (YELLOW,BLACK,ON)
 tag_key_selected_color = (BLACK,WHITE,ON)
-column_color = (YELLOW,BLACK,ON)
-column_selected_color = (BLACK,WHITE,ON)
 EOF
 
 . "$(pwd)/misc/libviss" || { echo "$(pwd)/misc/libviss not found. Cannot continue."; exit 1; }
