@@ -199,5 +199,50 @@ EOF
         echo "GETTY_ARGS=\"--noclear --autologin $username\"" > /etc/sv/agetty-tty1/conf
     fi
 
+# --- KDE PLASMA HARDENED DEFAULTS ---
+commandFailure="Configuring KDE Plasma defaults has failed."
+
+KDE_CONFIG_DIR="/home/$username/.config"
+mkdir -p "$KDE_CONFIG_DIR" || die
+
+# 1. Disable splash screen
+cat <<EOF > "$KDE_CONFIG_DIR/ksplashrc"
+[KSplash]
+Engine=none
+EOF
+
+# 2. Disable Baloo file indexer
+cat <<EOF > "$KDE_CONFIG_DIR/baloofilerc"
+[Basic Settings]
+Indexing-Enabled=false
+EOF
+
+# 3. Disable recent documents / activity tracking
+cat <<EOF > "$KDE_CONFIG_DIR/kactivitymanagerdrc"
+[Plugins]
+org.kde.ActivityManager.Resources_0009=false
+EOF
+
+# 4. KRunner: disable plugins + spell check
+cat <<EOF > "$KDE_CONFIG_DIR/krunnerrc"
+[Plugins]
+websearchEnabled=false
+softwarecenterEnabled=false
+org.kde.plasma.softwarecenterEnabled=false
+
+[General]
+SpellCheck=false
+EOF
+
+# 5. Start with empty session (don't restore previous session)
+cat <<EOF > "$KDE_CONFIG_DIR/ksmserverrc"
+[General]
+confirmLogout=false
+loginMode=emptySession
+EOF
+
+# Fix ownership
+chown -R "$username:$username" "$KDE_CONFIG_DIR" || die
+
     clear; rootPassword
 fi
