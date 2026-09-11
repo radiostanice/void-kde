@@ -179,7 +179,7 @@ kernelParamsConfig() {
 
     if [ "$preset" = "secure" ]; then
         # Max Security parameters (safe for desktop, avoids aggressive lockdowns that break DKMS/initramfs rescue)
-        KERN_PARAMS="mitigations=auto,nosmt spectre_v2=on spec_store_bypass_disable=on l1tf=full,force pti=on init_on_alloc=1 init_on_free=1 slab_debug=FZP slab_nomerge randomize_kstack_offset=on vsyscall=none random.trust_cpu=off random.trust_bootloader=off"
+        KERN_PARAMS="mitigations=auto,nosmt spectre_v2=on spec_store_bypass_disable=on l1tf=full,force pti=on init_on_alloc=1 init_on_free=1 slub_debug slab_nomerge randomize_kstack_offset=on vsyscall=none random.trust_cpu=off random.trust_bootloader=off"
     elif [ "$preset" = "default" ]; then
         # Default parameters (Baseline security with good performance)
         KERN_PARAMS="mitigations=auto pti=on vsyscall=emulate init_on_alloc=1"
