@@ -55,7 +55,7 @@ userConfig() {
         if [[ "$username" =~ ^[a-z_][a-z0-9_-]*$ ]]; then
             break
         fi
-        drawDialog --title "Invalid Username" --msgbox "Invalid username: '${username:-<empty>'.\n\nThe field is pre-filled with a safe default ('user').\nPress OK on it to accept, or type a valid name:\n- starts with a lowercase letter or '_'\n- then lowercase letters, digits, '-' or '_'" 0 0
+       drawDialog --title "Invalid Username" --msgbox "Invalid username: '${username:-<empty>}'.\n\nThe field is pre-filled with a safe default ('user').\nPress OK on it to accept, or type a valid name:\n- starts with a lowercase letter or '_'\n- then lowercase letters, digits, '-' or '_'" 0 0
     done
 
     # Hostname
@@ -69,8 +69,7 @@ userConfig() {
         if [[ "$hostname" =~ ^[a-zA-Z0-9]([a-zA-Z0-9_-]{0,62}[a-zA-Z0-9])?$ ]]; then
             break
         fi
-        drawDialog --title "Invalid Hostname" --msgbox "Invalid hostname: '${hostname:-<empty>'.\n\nUse 1-63 characters: letters, digits, '-' or '_',\nstarting and ending with a letter or digit.\nThe field is pre-filled with the default ('localhost')." 0 0
-    done
+        drawDialog --title "Invalid Hostname" --msgbox "Invalid hostname: '${hostname:-<empty>}'.\n\nUse 1-63 characters: letters, digits, '-' or '_',\nstarting and ending with a letter or digit.\nThe field is pre-filled with the default ('localhost')." 0 0
     timezoneConfig
 }
 
