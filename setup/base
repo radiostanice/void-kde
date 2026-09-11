@@ -20,7 +20,7 @@ fi
 
 commandFailure="Base system installation has failed."
 
-XBPS_ARCH=$ARCH install base-system e2fsprogs binutils chrony
+XBPS_ARCH=$ARCH install base-system e2fsprogs binutils chrony nano
 
 if [ "$kernel" != "linux" ] ; then
     install "$kernel"
@@ -30,6 +30,13 @@ fi
 if [ "$su" = "doas" ]; then
     install opendoas
 fi
+
+# Make nano the default editor instead of vi
+cat <<EOF > /mnt/etc/profile.d/nano.sh
+export EDITOR=nano
+export VISUAL=nano
+EOF
+chmod 644 /mnt/etc/profile.d/nano.sh
 
 # UKI & Initramfs Dependencies
 commandFailure="UKI/Initramfs package installation has failed."
@@ -77,9 +84,15 @@ if [ "$encryption" = "Yes" ]; then
     luks_uuid=$(blkid -o value -s UUID "$root")
     [ -n "$luks_uuid" ] || die "Failed to get LUKS UUID for $root."
     # Unified cmdline: dracut needs rd.luks.name, tinyramfs ignores it but needs root=
-    echo "rd.luks.name=$luks_uuid=void_root root=/dev/mapper/void_root rootfstype=ext4 rw quiet" > /mnt/etc/kernel/cmdline || die
+    echo -n "rd.luks.name=$luks_uuid=void_root root=/dev/mapper/void_root rootfstype=ext4 rw quiet" > /mnt/etc/kernel/cmdline || die
 else
-    echo "root=UUID=$root_uuid rootfstype=ext4 rw quiet" > /mnt/etc/kernel/cmdline || die
+    echo -n "root=UUID=$root_uuid rootfstype=ext4 rw quiet" > /mnt/etc/kernel/cmdline || die
+fi
+
+if [ -n "$KERN_PARAMS" ]; then
+    echo " $KERN_PARAMS" >> /mnt/etc/kernel/cmdline || die
+else
+    echo "" >> /mnt/etc/kernel/cmdline || die
 fi
 
 # --- LOCALE & HOSTNAME ---
