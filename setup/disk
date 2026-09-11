@@ -156,9 +156,9 @@ mkdir -p /var/cache/xbps /mnt/var/cache/xbps || die
 mount --bind /var/cache/xbps /mnt/var/cache/xbps || die
 
 for dir in dev proc sys run; do
-    mkdir -p /mnt/$dir
-    mount --rbind /$dir /mnt/$dir
-    mount --make-rslave /mnt/$dir
-done || die
+    mkdir -p /mnt/$dir || die
+    mount --rbind /$dir /mnt/$dir || die
+    mount --make-rslave /mnt/$dir || die
+done
 
 return 0
