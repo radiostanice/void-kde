@@ -17,12 +17,7 @@ button_label_active_color = (BLACK,GREEN,OFF)
 button_label_inactive_color = (WHITE,BLACK,OFF)
 
 inputbox_color = (WHITE,BLACK,ON)
-inputbox_border_color = (GREEN,BLACK,ON)
-inputbox_border2_color = (GREEN,BLACK,ON)
 searchbox_color = (WHITE,BLACK,ON)
-searchbox_title_color = (GREEN,BLACK,ON)
-searchbox_border_color = (GREEN,BLACK,ON)
-position_indicator_color = (GREEN,BLACK,ON)
 
 menubox_color = (WHITE,BLACK,OFF)
 menubox_border_color = (GREEN,BLACK,ON)
@@ -34,10 +29,3 @@ item_selected_color = (GREEN,BLACK,ON)
 tag_selected_color = (GREEN,BLACK,ON)
 tag_key_selected_color = (GREEN,BLACK,ON)
 
-check_color = (GREEN,BLACK,ON)
-check_selected_color = (GREEN,BLACK,ON)
-
-uarrow_color = (GREEN,BLACK,ON)
-darrow_color = (GREEN,BLACK,ON)
-gauge_color = (BLACK,GREEN,OFF)
-itemhelp_color = (WHITE,BLACK,ON)
