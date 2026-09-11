@@ -32,7 +32,7 @@ tag_color = (WHITE,BLACK,ON)
 tag_key_color = (CYAN,BLACK,ON)
 item_selected_color = (CYAN,BLACK,OFF)
 tag_selected_color = (CYAN,BLACK,OFF)
-tag_key_selected_color = (BLUE,BLACK,ON)
+tag_key_selected_color = (CYAN,BLACK,ON)
 
 check_color = (GREEN,BLACK,ON)
 check_selected_color = (GREEN,BLACK,ON)
