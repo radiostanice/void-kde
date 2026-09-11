@@ -1,46 +1,64 @@
-
 # ~/.dialogrc
-# Custom dark mode theme for dialog(1)
-# Uses standard ncurses/dialog color names:
-# BLACK RED GREEN YELLOW BLUE MAGENTA CYAN WHITE
+# Theme: Obsidian Cyan (Custom Dark Mode)
+# A sleek, high-contrast dark theme for the Linux dialog utility.
 
-use_colors = on
-use_shadow = off
+# Global Settings
+use_shadow = YES
+use_colors = YES
+aspect = 0
+separate_widget = ""
+tab_len = 0
+visit_columns = 0
 
-# Global screen/dialog colors
-screen_color = (WHITE,BLACK,ON)
-shadow_color = (BLACK,BLACK,ON)
-dialog_color = (WHITE,BLACK,ON)
-title_color = (CYAN,BLACK,ON)
-border_color = (CYAN,BLACK,ON)
+# Base Colors
+# Format: color <element> = <foreground>, <background>, <highlight>
+# Available colors: black, red, green, yellow, blue, magenta, cyan, white
+# Available highlights: normal, bold, reverse, underline, dim, standout
+
+# Screen and Shadows
+color screen = white, black, normal
+color shadow = black, black, normal
+
+# Main Dialog Box
+color dialog = white, black, normal
+color title = cyan, black, bold
+color border = cyan, black, normal
 
 # Buttons
-button_active_color = (BLACK,CYAN,ON)
-button_inactive_color = (WHITE,BLACK,ON)
-button_key_active_color = (BLACK,CYAN,ON)
-button_key_inactive_color = (YELLOW,BLACK,ON)
-button_label_active_color = (BLACK,CYAN,ON)
-button_label_inactive_color = (WHITE,BLACK,ON)
+color button_active = black, cyan, bold
+color button_inactive = white, black, normal
+color button_key_active = red, cyan, bold
+color button_key_inactive = yellow, black, bold
+color button_label_active = black, cyan, bold
+color button_label_inactive = white, black, normal
 
-# Input/search boxes
-inputbox_color = (WHITE,BLACK,ON)
-searchbox_color = (WHITE,BLACK,ON)
-searchbox_title_color = (CYAN,BLACK,ON)
+# Input Boxes
+color inputbox = white, black, normal
+color inputbox_border = cyan, black, normal
+color searchbox = white, black, normal
+color searchbox_border = cyan, black, normal
 
-# Menus, lists, items
-menubox_color = (WHITE,BLACK,ON)
-menubox_border_color = (CYAN,BLACK,ON)
-item_color = (WHITE,BLACK,ON)
-item_selected_color = (BLACK,CYAN,ON)
-tag_color = (CYAN,BLACK,ON)
-tag_selected_color = (BLACK,CYAN,ON)
-tag_key_color = (YELLOW,BLACK,ON)
-tag_key_selected_color = (BLACK,CYAN,ON)
-check_color = (WHITE,BLACK,ON)
-check_selected_color = (BLACK,CYAN,ON)
-uarrow_color = (GREEN,BLACK,ON)
-darrow_color = (GREEN,BLACK,ON)
+# Menus and Lists
+color menubox = white, black, normal
+color menubox_border = cyan, black, normal
+color item = white, black, normal
+color item_selected = black, cyan, bold
 
-# Forms
-form_active_text_color = (BLACK,CYAN,ON)
-form_text_color = (WHITE,BLACK,ON)
+# Tags (Checklists/Radiolists)
+color tag = white, black, normal
+color tag_selected = black, cyan, bold
+color tag_key = yellow, black, bold
+color tag_key_selected = red, cyan, bold
+color check = white, black, normal
+color check_selected = black, cyan, bold
+
+# Position Indicator & Arrows
+color position_indicator = cyan, black, bold
+color uparrow = cyan, black, bold
+color downarrow = cyan, black, bold
+color leftarrow = cyan, black, bold
+color rightarrow = cyan, black, bold
+
+# Forms (if supported by your dialog version)
+color form_text = white, black, normal
+color form_border = cyan, black, normal
