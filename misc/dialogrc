@@ -2,14 +2,6 @@
 # Theme: Obsidian Cyan (Custom Dark Mode)
 # A sleek, high-contrast dark theme for the Linux dialog utility.
 
-# Global Settings
-use_shadow = YES
-use_colors = YES
-aspect = 0
-separate_widget = ""
-tab_len = 0
-visit_columns = 0
-
 # Base Colors
 # Format: color <element> = <foreground>, <background>, <highlight>
 # Available colors: black, red, green, yellow, blue, magenta, cyan, white
